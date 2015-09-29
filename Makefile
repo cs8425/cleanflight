@@ -15,7 +15,7 @@
 #
 
 # The target to build, see VALID_TARGETS below
-TARGET		?= NAZE
+TARGET		?= CC3D
 
 # Compile-time options
 OPTIONS		?=
@@ -30,7 +30,7 @@ DEBUG ?=
 SERIAL_DEVICE	?= $(firstword $(wildcard /dev/ttyUSB*) no-port-found)
 
 # Flash size (KB).  Some low-end chips actually have more flash than advertised, use this to override.
-FLASH_SIZE ?=
+FLASH_SIZE ?= 128
 
 ###############################################################################
 # Things that need to be maintained as the source changes
@@ -106,7 +106,7 @@ INCLUDE_DIRS := $(INCLUDE_DIRS) \
 VPATH := $(VPATH):$(USBFS_DIR)/src
 
 DEVICE_STDPERIPH_SRC := $(DEVICE_STDPERIPH_SRC)\
-		   $(USBPERIPH_SRC) 
+		   $(USBPERIPH_SRC)
 
 endif
 
@@ -183,7 +183,7 @@ INCLUDE_DIRS := $(INCLUDE_DIRS) \
 VPATH := $(VPATH):$(USBFS_DIR)/src
 
 DEVICE_STDPERIPH_SRC := $(DEVICE_STDPERIPH_SRC) \
-		   $(USBPERIPH_SRC) 
+		   $(USBPERIPH_SRC)
 
 endif
 
@@ -603,6 +603,8 @@ ASFLAGS		 = $(ARCH_FLAGS) \
 LDFLAGS		 = -lm \
 		   -nostartfiles \
 		   --specs=nano.specs \
+		   --specs=nosys.specs \
+		   -lc \
 		   -lc \
 		   -lnosys \
 		   $(ARCH_FLAGS) \
@@ -647,7 +649,7 @@ $(TARGET_BIN): $(TARGET_ELF)
 
 $(TARGET_ELF):  $(TARGET_OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
-	$(SIZE) $(TARGET_ELF) 
+	$(SIZE) $(TARGET_ELF)
 
 # Compile
 $(OBJECT_DIR)/$(TARGET)/%.o: %.c

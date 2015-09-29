@@ -67,10 +67,13 @@ static float errorAngleIf[2] = { 0.0f, 0.0f };
 static void pidMultiWii(pidProfile_t *pidProfile, controlRateConfig_t *controlRateConfig,
         uint16_t max_angle_inclination, rollAndPitchTrims_t *angleTrim, rxConfig_t *rxConfig);
 
+static void pidLuxFloat(pidProfile_t *pidProfile, controlRateConfig_t *controlRateConfig,
+        uint16_t max_angle_inclination, rollAndPitchTrims_t *angleTrim, rxConfig_t *rxConfig);
+
 typedef void (*pidControllerFuncPtr)(pidProfile_t *pidProfile, controlRateConfig_t *controlRateConfig,
         uint16_t max_angle_inclination, rollAndPitchTrims_t *angleTrim, rxConfig_t *rxConfig);            // pid controller function prototype
 
-pidControllerFuncPtr pid_controller = pidMultiWii; // which pid controller are we using, defaultMultiWii
+pidControllerFuncPtr pid_controller = pidLuxFloat; // which pid controller are we using, default pidMultiWii
 
 void pidResetErrorAngle(void)
 {
@@ -219,12 +222,12 @@ static void pidLuxFloat(pidProfile_t *pidProfile, controlRateConfig_t *controlRa
         DTerm = constrainf((deltaSum / 3.0f) * pidProfile->D_f[axis] * PIDweight[axis] / 100, -300.0f, 300.0f);
 
         // -----calculate total PID output
-        axisPID[axis] = constrain(lrintf(PTerm + ITerm - DTerm), -1000, 1000);
+        axisPID[axis] = constrain(lrintf(PTerm + ITerm + DTerm), -1000, 1000);
 
 #ifdef BLACKBOX
         axisPID_P[axis] = PTerm;
         axisPID_I[axis] = ITerm;
-        axisPID_D[axis] = -DTerm;
+        axisPID_D[axis] = DTerm;
 #endif
     }
 }
@@ -830,13 +833,13 @@ void pidSetController(pidControllerType_e type)
 {
     switch (type) {
         case PID_CONTROLLER_MULTI_WII:
-        default:
             pid_controller = pidMultiWii;
             break;
         case PID_CONTROLLER_REWRITE:
             pid_controller = pidRewrite;
             break;
         case PID_CONTROLLER_LUX_FLOAT:
+        default:
             pid_controller = pidLuxFloat;
             break;
         case PID_CONTROLLER_MULTI_WII_23:
@@ -849,4 +852,3 @@ void pidSetController(pidControllerType_e type)
             pid_controller = pidHarakiri;
     }
 }
-

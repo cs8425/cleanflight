@@ -89,9 +89,9 @@ enum {
 };
 
 /* VBAT monitoring interval (in microseconds) - 1s*/
-#define VBATINTERVAL (6 * 3500)       
+#define VBATINTERVAL (6 * 3500)
 /* IBat monitoring interval (in microseconds) - 6 default looptimes */
-#define IBATINTERVAL (6 * 3500)       
+#define IBATINTERVAL (6 * 3500)
 
 uint32_t currentTime = 0;
 uint32_t previousTime = 0;
@@ -732,7 +732,11 @@ void loop(void)
     if (masterConfig.looptime == 0 || (int32_t)(currentTime - loopTime) >= 0) {
         loopTime = currentTime + masterConfig.looptime;
 
+#ifdef USE_QUATERNION
+        qimuUpdate(&currentProfile->accelerometerTrims);
+#else
         imuUpdate(&currentProfile->accelerometerTrims);
+#endif
 
         // Measure loop rate just after reading the sensors
         currentTime = micros();

@@ -43,7 +43,7 @@
 #define MAG
 #define USE_MAG_HMC5883
 
-#define BRUSHED_MOTORS
+// #define BRUSHED_MOTORS
 
 #define USE_USART1
 #define USE_USART2
@@ -59,12 +59,12 @@
 
 #define SERIAL_RX
 //#define USE_SERVOS
-#define USE_CLI
+// #define USE_CLI
 
-#define SPEKTRUM_BIND
-// USART2, PA3
-#define BIND_PORT  GPIOA
-#define BIND_PIN   Pin_3
+// #define SPEKTRUM_BIND
+// // USART2, PA3
+// #define BIND_PORT  GPIOA
+// #define BIND_PIN   Pin_3
 
 // Since the CJMCU PCB has holes for 4 motors in each corner we can save same flash space by disabling support for other mixers.
 #define USE_QUAD_MIXER_ONLY
