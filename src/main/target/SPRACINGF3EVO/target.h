@@ -50,13 +50,13 @@
 #define USE_BARO_BMP280
 
 #define MAG
-#define USE_MPU9250_MAG // Enables bypass configuration
-#define USE_MAG_AK8963
+//#define USE_MPU9250_MAG // Enables bypass configuration
+//#define USE_MAG_AK8963
 #define USE_MAG_HMC5883 // External
 
 #define MAG_AK8963_ALIGN CW270_DEG_FLIP
 
-#define SONAR
+//#define SONAR
 #define SONAR_TRIGGER_PIN           Pin_0   // ESC output 7 - only 3.3v ( add a 1K Ohms resistor )
 #define SONAR_TRIGGER_GPIO          GPIOB
 #define SONAR_ECHO_PIN              Pin_1   // ESC output 8 - only 3.3v ( add a 1K Ohms resistor )
@@ -135,7 +135,7 @@
 #define SPI2_MOSI_PIN           Pin_15
 #define SPI2_MOSI_PIN_SOURCE    GPIO_PinSource15
 
-#define USE_SDCARD
+//#define USE_SDCARD
 #define USE_SDCARD_SPI2
 
 #define SDCARD_DETECT_INVERTED
@@ -190,7 +190,7 @@
 #define ADC_RSSI        ADC_CHANNEL2
 
 
-#define LED_STRIP
+//#define LED_STRIP
 #define LED_STRIP_TIMER TIM1
 
 #define USE_LED_STRIP_ON_DMA1_CHANNEL2
@@ -206,7 +206,7 @@
 #define WS2811_DMA_TC_FLAG              DMA1_FLAG_TC2
 #define WS2811_DMA_HANDLER_IDENTIFER    DMA1Channel2Descriptor
 
-#define TRANSPONDER
+//#define TRANSPONDER
 #define TRANSPONDER_GPIO                     GPIOA
 #define TRANSPONDER_GPIO_AHB_PERIPHERAL      RCC_AHBPeriph_GPIOA
 #define TRANSPONDER_GPIO_AF                  GPIO_AF_6
@@ -219,17 +219,19 @@
 #define TRANSPONDER_DMA_TC_FLAG              DMA1_FLAG_TC2
 #define TRANSPONDER_DMA_HANDLER_IDENTIFER    DMA1Channel2Descriptor
 
-#define DEFAULT_RX_FEATURE FEATURE_RX_PPM
-#define DEFAULT_FEATURES (FEATURE_TRANSPONDER | FEATURE_RSSI_ADC | FEATURE_AMPERAGE_METER | FEATURE_TELEMETRY)
+//#define DEFAULT_RX_FEATURE FEATURE_RX_PPM
+//#define DEFAULT_FEATURES (FEATURE_TRANSPONDER | FEATURE_RSSI_ADC | FEATURE_AMPERAGE_METER | FEATURE_TELEMETRY)
+#define DEFAULT_RX_FEATURE FEATURE_RX_SERIAL
+#define DEFAULT_FEATURES (FEATURE_MOTOR_STOP | FEATURE_TELEMETRY)
 
 #define GPS
-#define BLACKBOX
+//#define BLACKBOX
 #define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
 #define TELEMETRY
-#define TELEMETRY_IBUS
+//#define TELEMETRY_IBUS
 #define SERIAL_RX
 #define GTUNE
-#define DISPLAY
+//#define DISPLAY
 #define USE_SERVOS
 #define USE_CLI
 #define USE_EXTI
@@ -239,7 +241,7 @@
 #define BIND_PORT  GPIOB
 #define BIND_PIN   Pin_11
 
-#define USE_SERIAL_4WAY_BLHELI_INTERFACE
+//#define USE_SERIAL_4WAY_BLHELI_INTERFACE
 
 // IO - stm32f303cc in 48pin package
 #define TARGET_IO_PORTA 0xffff
