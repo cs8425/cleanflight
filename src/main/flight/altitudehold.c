@@ -62,7 +62,7 @@ int32_t AltHold;
 int32_t vario = 0;                      // variometer in cm/s
 
 
-#if defined(BARO) || defined(SONAR)
+#if defined(BARO) || defined(SONAR) || defined(ACC_ALT_HOLD)
 
 static int16_t initialRawThrottleHold;
 static int16_t initialThrottleHold;
@@ -147,66 +147,9 @@ void applyAltHold(void)
     }
 }
 
-void updateAltHoldState(void)
+int32_t altitudeHoldGetEstimatedAltitude(void)
 {
-    // Baro alt hold activate
-    if (!rcModeIsActive(BOXBARO)) {
-        DISABLE_FLIGHT_MODE(BARO_MODE);
-        return;
-    }
-
-    if (!FLIGHT_MODE(BARO_MODE)) {
-        ENABLE_FLIGHT_MODE(BARO_MODE);
-        AltHold = EstAlt;
-        initialRawThrottleHold = rcData[THROTTLE];
-        initialThrottleHold = rcCommand[THROTTLE];
-        errorVelocityI = 0;
-        altHoldThrottleAdjustment = 0;
-    }
-}
-
-void updateSonarAltHoldState(void)
-{
-    // Sonar alt hold activate
-    if (!rcModeIsActive(BOXSONAR)) {
-        DISABLE_FLIGHT_MODE(SONAR_MODE);
-        return;
-    }
-
-    if (!FLIGHT_MODE(SONAR_MODE)) {
-        ENABLE_FLIGHT_MODE(SONAR_MODE);
-        AltHold = EstAlt;
-        initialRawThrottleHold = rcData[THROTTLE];
-        initialThrottleHold = rcCommand[THROTTLE];
-        errorVelocityI = 0;
-        altHoldThrottleAdjustment = 0;
-        accAlt = EstAlt;
-    }
-}
-
-void resetACCVel(void)
-{
-    vel = 0.0f;
-    accAlt = 0.0f;
-}
-
-void updateACCAltHoldState(void)
-{
-    // ACC alt hold activate
-    if (!rcModeIsActive(BOXALTHOLD)) {
-        DISABLE_FLIGHT_MODE(ALT_HOLD_MODE);
-        return;
-    }
-
-    if (!FLIGHT_MODE(ALT_HOLD_MODE)) {
-        ENABLE_FLIGHT_MODE(ALT_HOLD_MODE);
-        AltHold = EstAlt * 10; // cm -> mm
-        initialRawThrottleHold = rcData[THROTTLE];
-        initialThrottleHold = rcCommand[THROTTLE];
-        errorVelocityI = 0;
-        altHoldThrottleAdjustment = 0;
-        initialStickPos = 0;
-    }
+    return EstAlt;
 }
 
 bool isThrustFacingDownwards(attitudeEulerAngles_t *attitude)
@@ -214,6 +157,9 @@ bool isThrustFacingDownwards(attitudeEulerAngles_t *attitude)
     return ABS(attitude->values.roll) < DEGREES_80_IN_DECIDEGREES && ABS(attitude->values.pitch) < DEGREES_80_IN_DECIDEGREES;
 }
 
+#endif
+
+#if defined(BARO) || defined(SONAR)
 int32_t calculateAltHoldThrottleAdjustment(int32_t vel_tmp, float accZ_tmp, float accZ_old)
 {
     int32_t result = 0;
@@ -247,50 +193,6 @@ int32_t calculateAltHoldThrottleAdjustment(int32_t vel_tmp, float accZ_tmp, floa
 
     // D
     result -= constrain(pidProfile()->D8[PIDVEL] * (accZ_tmp + accZ_old) / 512, -150, 150);
-
-    return result;
-}
-
-int32_t calculateAltHoldThrottleAdjustmentACC(int32_t vel_tmp, float accZ_tmp, float accZ_old)
-{
-    int32_t result = 0;
-    int32_t error;
-    int32_t setVel = setVelocity;
-
-    uint8_t P, I, D;
-
-    if (!isThrustFacingDownwards(&attitude)) {
-        return result;
-    }
-
-    // Altitude P-Controller
-    // not yet :(
-
-
-    // Velocity PID-Controller
-
-    // P
-    error = setVel - vel_tmp;
-    if (error > 0) {
-        // go up
-        P = pidProfile()->P8[PIDALT];
-        I = pidProfile()->I8[PIDALT];
-        D = pidProfile()->D8[PIDALT];
-    } else {
-        // go down
-        P = pidProfile()->P8[PIDVEL];
-        I = pidProfile()->I8[PIDVEL];
-        D = pidProfile()->D8[PIDVEL];
-    }
-    result = constrain((P * error / 64), -600, +600);
-
-    // I
-    errorVelocityI += (I * error);
-    errorVelocityI = constrain(errorVelocityI, -(256 * 800), (256 * 800));
-    result += errorVelocityI / 256;     // I in range +/-800
-
-    // D
-    result -= constrain(D * (accZ_tmp + accZ_old) / 256, -300, 300);
 
     return result;
 }
@@ -413,6 +315,89 @@ void calculateEstimatedAltitude(uint32_t currentTime)
     accZ_old = accZ_tmp;
 }
 
+void updateAltHoldState(void)
+{
+    // Baro alt hold activate
+    if (!rcModeIsActive(BOXBARO)) {
+        DISABLE_FLIGHT_MODE(BARO_MODE);
+        return;
+    }
+
+    if (!FLIGHT_MODE(BARO_MODE)) {
+        ENABLE_FLIGHT_MODE(BARO_MODE);
+        AltHold = EstAlt;
+        initialRawThrottleHold = rcData[THROTTLE];
+        initialThrottleHold = rcCommand[THROTTLE];
+        errorVelocityI = 0;
+        altHoldThrottleAdjustment = 0;
+    }
+}
+
+void updateSonarAltHoldState(void)
+{
+    // Sonar alt hold activate
+    if (!rcModeIsActive(BOXSONAR)) {
+        DISABLE_FLIGHT_MODE(SONAR_MODE);
+        return;
+    }
+
+    if (!FLIGHT_MODE(SONAR_MODE)) {
+        ENABLE_FLIGHT_MODE(SONAR_MODE);
+        AltHold = EstAlt;
+        initialRawThrottleHold = rcData[THROTTLE];
+        initialThrottleHold = rcCommand[THROTTLE];
+        errorVelocityI = 0;
+        altHoldThrottleAdjustment = 0;
+        accAlt = EstAlt;
+    }
+}
+#endif
+
+#if defined(ACC_ALT_HOLD)
+int32_t calculateAltHoldThrottleAdjustmentACC(int32_t vel_tmp, float accZ_tmp, float accZ_old)
+{
+    int32_t result = 0;
+    int32_t error;
+    int32_t setVel = setVelocity;
+
+    uint8_t P, I, D;
+
+    if (!isThrustFacingDownwards(&attitude)) {
+        return result;
+    }
+
+    // Altitude P-Controller
+    // not yet :(
+
+
+    // Velocity PID-Controller
+
+    // P
+    error = setVel - vel_tmp;
+    if (error > 0) {
+        // go up
+        P = pidProfile()->P8[PIDALT];
+        I = pidProfile()->I8[PIDALT];
+        D = pidProfile()->D8[PIDALT];
+    } else {
+        // go down
+        P = pidProfile()->P8[PIDVEL];
+        I = pidProfile()->I8[PIDVEL];
+        D = pidProfile()->D8[PIDVEL];
+    }
+    result = constrain((P * error / 64), -600, +600);
+
+    // I
+    errorVelocityI += (I * error);
+    errorVelocityI = constrain(errorVelocityI, -(256 * 800), (256 * 800));
+    result += errorVelocityI / 256;     // I in range +/-800
+
+    // D
+    result -= constrain(D * (accZ_tmp + accZ_old) / 256, -300, 300);
+
+    return result;
+}
+
 void calculateEstimatedAltitudeACC(uint32_t currentTime)
 {
     UNUSED(currentTime);
@@ -458,11 +443,29 @@ void calculateEstimatedAltitudeACC(uint32_t currentTime)
     accZ_old = accZ_tmp;
 }
 
-
-int32_t altitudeHoldGetEstimatedAltitude(void)
+void resetACCVel(void)
 {
-    return EstAlt;
+    vel = 0.0f;
+    accAlt = 0.0f;
 }
 
+void updateACCAltHoldState(void)
+{
+    // ACC alt hold activate
+    if (!rcModeIsActive(BOXALTHOLD)) {
+        DISABLE_FLIGHT_MODE(ALT_HOLD_MODE);
+        return;
+    }
+
+    if (!FLIGHT_MODE(ALT_HOLD_MODE)) {
+        ENABLE_FLIGHT_MODE(ALT_HOLD_MODE);
+        AltHold = EstAlt * 10; // cm -> mm
+        initialRawThrottleHold = rcData[THROTTLE];
+        initialThrottleHold = rcCommand[THROTTLE];
+        errorVelocityI = 0;
+        altHoldThrottleAdjustment = 0;
+        initialStickPos = 0;
+    }
+}
 #endif
 
