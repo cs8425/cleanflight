@@ -27,6 +27,7 @@
 
 #include "common/maths.h"
 #include "common/axis.h"
+#include "common/utils.h"
 
 #include "sensors/barometer.h"
 #include "sensors/sonar.h"
@@ -45,6 +46,7 @@
 int32_t setVelocity = 0;
 uint8_t velocityControl = 0;
 int32_t errorVelocityI = 0;
+int32_t errorAccelerateI = 0;
 int32_t altHoldThrottleAdjustment = 0;
 int32_t AltHold;
 int32_t vario = 0;                      // variometer in cm/s
@@ -356,9 +358,6 @@ int32_t calculateAltHoldThrottleAdjustmentACC(int32_t vel_tmp, float accZ_tmp, f
 
     uint8_t P, I, D;
 
-    static int32_t hoverI = 0;
-    static int32_t last_error = 0;
-
     if (!isThrustFacingDownwards(&attitude)) {
         return result;
     }
@@ -368,47 +367,47 @@ int32_t calculateAltHoldThrottleAdjustmentACC(int32_t vel_tmp, float accZ_tmp, f
 
 
     // Velocity PID-Controller
-
     P = pidProfile->P8[PIDVEL];
     I = pidProfile->I8[PIDVEL];
     D = pidProfile->D8[PIDVEL];
 
     // P
     error = setVel - vel_tmp;
-    if ((ABS(error) > pidProfile->D8[PIDALT])
-        && ( ((last_error > 0) && (error > 0)) || ((last_error < 0) && (error < 0)) )
-    ) {
-        if (hoverTest > pidProfile->P8[PIDALT]) {
-            P = P + (P / 2);
-            hoverI += (pidProfile->I8[PIDALT] * error);
-            hoverI = constrain(hoverI, -(128 * 800), (128 * 800));
-        } else {
-
-        }
-        hoverTest++;
-    } else {
-        hoverTest = 0;
-    }
-    result = constrain((P * error / 64), -600, +600);
-
+    result = constrain((P * error / 128), -600, +600);
 
     // I
     errorVelocityI += (I * error);
-    errorVelocityI = constrain(errorVelocityI, -(256 * 600), (256 * 600));
-    result += errorVelocityI / 256;     // I in range +/-600
-    result += hoverI / 128;
+    errorVelocityI = constrain(errorVelocityI, -(128 * 600), (128 * 600));
+    result += errorVelocityI / 128;     // I in range +/-600
 
     // D
     result -= constrain(D * (accZ_tmp + accZ_old) / 256, -(256 * 300), (256 * 300));
 
-    last_error = error;
+
+
+    // Accelerate PID-Controller
+    P = pidProfile->P8[PIDALT];
+    I = pidProfile->I8[PIDALT];
+    D = pidProfile->D8[PIDALT];
+
+    // P
+    error = result - accZ_tmp;
+    result = constrain((P * error / 64), -600, +600);
+
+    // I
+    errorAccelerateI += (I * error);
+    errorAccelerateI = constrain(errorAccelerateI, -(256 * 600), (256 * 600));
+    result += errorAccelerateI / 256;     // I in range +/-600
+
+    // D
+    result -= constrain(D * (accZ_tmp - accZ_old) / 256, -(256 * 300), (256 * 300));
 
     return result;
 }
 
 void calculateEstimatedAltitudeACC(timeUs_t currentTime)
 {
-    currentTime;
+    UNUSED(currentTime);
     float dt;
     float vel_acc;
     int32_t vel_tmp;
@@ -470,6 +469,7 @@ void updateACCAltHoldState(void)
         AltHold = EstAlt * 10; // cm -> mm
         initialThrottleHold = rcData[THROTTLE];
         errorVelocityI = 0;
+        errorAccelerateI = 0;
         altHoldThrottleAdjustment = 0;
         initialStickPos = 0;
         hoverTest = 0;

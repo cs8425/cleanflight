@@ -146,9 +146,9 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->P8[YAW] = 70;
     pidProfile->I8[YAW] = 45;
     pidProfile->D8[YAW] = 20;
-    pidProfile->P8[PIDALT] = 50;
-    pidProfile->I8[PIDALT] = 0;
-    pidProfile->D8[PIDALT] = 0;
+    pidProfile->P8[PIDALT] = 36;
+    pidProfile->I8[PIDALT] = 2;
+    pidProfile->D8[PIDALT] = 30;
     pidProfile->P8[PIDPOS] = 15;   // POSHOLD_P * 100;
     pidProfile->I8[PIDPOS] = 0;    // POSHOLD_I * 100;
     pidProfile->D8[PIDPOS] = 0;
@@ -162,9 +162,9 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->I8[PIDLEVEL] = 50;
     pidProfile->D8[PIDLEVEL] = 100;
     pidProfile->P8[PIDMAG] = 40;
-    pidProfile->P8[PIDVEL] = 55;
-    pidProfile->I8[PIDVEL] = 55;
-    pidProfile->D8[PIDVEL] = 20;
+    pidProfile->P8[PIDVEL] = 90;
+    pidProfile->I8[PIDVEL] = 70;
+    pidProfile->D8[PIDVEL] = 5;
 
     pidProfile->yaw_p_limit = YAW_P_LIMIT_MAX;
     pidProfile->pidSumLimit = PIDSUM_LIMIT;
