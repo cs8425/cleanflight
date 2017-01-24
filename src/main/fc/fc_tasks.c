@@ -155,6 +155,13 @@ static void taskUpdateRxMain(timeUs_t currentTimeUs)
         updateSonarAltHoldState();
     }
 #endif
+
+#if defined(USE_ACC_ALT_HOLD) && defined(ACC)
+    // update Alt Hold by ACC only
+    if (feature(FEATURE_ACC_ALT_HOLD) && sensors(SENSOR_ACC)) {
+        updateACCAltHoldState();
+    }
+#endif
 }
 
 #ifdef MAG
@@ -193,6 +200,13 @@ static void taskCalculateAltitude(timeUs_t currentTimeUs)
         ) {
         calculateEstimatedAltitude(currentTimeUs);
     }}
+#endif
+
+#if defined(USE_ACC_ALT_HOLD) && defined(ACC)
+static void taskCalculateAltitudeACC(timeUs_t currentTimeUs)
+{
+    calculateEstimatedAltitudeACC(currentTimeUs);
+}
 #endif
 
 #ifdef TELEMETRY
@@ -259,6 +273,9 @@ void fcTasksInit(void)
 #endif
 #if defined(BARO) || defined(SONAR)
     setTaskEnabled(TASK_ALTITUDE, sensors(SENSOR_BARO) || sensors(SENSOR_SONAR));
+#endif
+#if defined(USE_ACC_ALT_HOLD) && defined(ACC)
+    setTaskEnabled(TASK_ALTITUDE_ACC, feature(FEATURE_ACC_ALT_HOLD) && sensors(SENSOR_ACC));
 #endif
 #ifdef USE_DASHBOARD
     setTaskEnabled(TASK_DASHBOARD, feature(FEATURE_DASHBOARD));
@@ -333,7 +350,7 @@ cfTask_t cfTasks[TASK_COUNT] = {
     [TASK_ATTITUDE] = {
         .taskName = "ATTITUDE",
         .taskFunc = imuUpdateAttitude,
-        .desiredPeriod = TASK_PERIOD_HZ(100),
+        .desiredPeriod = TASK_PERIOD_HZ(250),
         .staticPriority = TASK_PRIORITY_MEDIUM,
     },
 
@@ -417,6 +434,15 @@ cfTask_t cfTasks[TASK_COUNT] = {
         .taskFunc = taskCalculateAltitude,
         .desiredPeriod = TASK_PERIOD_HZ(40),
         .staticPriority = TASK_PRIORITY_LOW,
+    },
+#endif
+
+#if defined(USE_ACC_ALT_HOLD) && defined(ACC)
+    [TASK_ALTITUDE_ACC] = {
+        .taskName = "ALTITUDE_ACC",
+        .taskFunc = taskCalculateAltitudeACC,
+        .desiredPeriod = TASK_PERIOD_MS(20),
+        .staticPriority = TASK_PRIORITY_MEDIUM,
     },
 #endif
 

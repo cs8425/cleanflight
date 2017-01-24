@@ -51,6 +51,7 @@ typedef enum {
     BOXAIRMODE,
     BOX3DDISABLESWITCH,
     BOXFPVANGLEMIX,
+    BOXALTHOLD,
     CHECKBOX_ITEM_COUNT
 } boxId_e;
 

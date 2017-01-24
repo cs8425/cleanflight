@@ -164,7 +164,7 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->P8[PIDMAG] = 40;
     pidProfile->P8[PIDVEL] = 55;
     pidProfile->I8[PIDVEL] = 55;
-    pidProfile->D8[PIDVEL] = 75;
+    pidProfile->D8[PIDVEL] = 20;
 
     pidProfile->yaw_p_limit = YAW_P_LIMIT_MAX;
     pidProfile->pidSumLimit = PIDSUM_LIMIT;

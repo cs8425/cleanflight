@@ -29,8 +29,13 @@ struct motorConfig_s;
 void configureAltitudeHold(struct pidProfile_s *initialPidProfile, struct barometerConfig_s *intialBarometerConfig, struct rcControlsConfig_s *initialRcControlsConfig, struct motorConfig_s *initialMotorConfig);
 
 struct airplaneConfig_s;
-void applyAltHold(struct airplaneConfig_s *airplaneConfig);
+struct rxConfig_s;
+void applyAltHold(struct rxConfig_s *rxConfig, struct airplaneConfig_s *airplaneConfig);
 void updateAltHoldState(void);
 void updateSonarAltHoldState(void);
+
+void calculateEstimatedAltitudeACC(timeUs_t currentTime);
+void updateACCAltHoldState(void);
+void resetACCVel(void);
 
 int32_t altitudeHoldGetEstimatedAltitude(void);

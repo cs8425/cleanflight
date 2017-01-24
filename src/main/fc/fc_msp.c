@@ -148,6 +148,7 @@ static const box_t boxes[CHECKBOX_ITEM_COUNT + 1] = {
     { BOXAIRMODE, "AIR MODE;", 28 },
     { BOX3DDISABLESWITCH, "DISABLE 3D SWITCH;", 29},
     { BOXFPVANGLEMIX, "FPV ANGLE MIX;", 30},
+    { BOXALTHOLD, "ACC HOLD;", 31},
     { CHECKBOX_ITEM_COUNT, NULL, 0xFF }
 };
 
@@ -304,6 +305,7 @@ reset:
             for (int j = 0; j < len; j++) {
                 sbufWriteU8(dst, box->boxName[j]);
             }
+            //sbufWriteU8(dst, ';');                 // TODO - sbufWriteChar?
         }
     }
 
@@ -329,6 +331,7 @@ void initActiveBoxIds(void)
         activeBoxIds[activeBoxIdCount++] = BOXANGLE;
         activeBoxIds[activeBoxIdCount++] = BOXHORIZON;
         activeBoxIds[activeBoxIdCount++] = BOXHEADFREE;
+        activeBoxIds[activeBoxIdCount++] = BOXALTHOLD;
     }
 
 #ifdef BARO
@@ -442,7 +445,8 @@ static uint32_t packFlightModeFlags(void)
         IS_ENABLED(IS_RC_MODE_ACTIVE(BOXBLACKBOX)) << BOXBLACKBOX |
         IS_ENABLED(FLIGHT_MODE(FAILSAFE_MODE)) << BOXFAILSAFE |
         IS_ENABLED(IS_RC_MODE_ACTIVE(BOXAIRMODE)) << BOXAIRMODE |
-        IS_ENABLED(IS_RC_MODE_ACTIVE(BOXFPVANGLEMIX)) << BOXFPVANGLEMIX;
+        IS_ENABLED(IS_RC_MODE_ACTIVE(BOXFPVANGLEMIX)) << BOXFPVANGLEMIX |
+        IS_ENABLED(IS_RC_MODE_ACTIVE(BOXALTHOLD)) << BOXALTHOLD;
 
     uint32_t ret = 0;
     for (int i = 0; i < activeBoxIdCount; i++) {

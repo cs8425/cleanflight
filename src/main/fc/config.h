@@ -56,6 +56,7 @@ typedef enum {
     FEATURE_RX_SPI = 1 << 25,
     FEATURE_SOFTSPI = 1 << 26,
     FEATURE_ESC_SENSOR = 1 << 27,
+    FEATURE_ACC_ALT_HOLD = 1 << 28,
 } features_e;
 
 void beeperOffSet(uint32_t mask);

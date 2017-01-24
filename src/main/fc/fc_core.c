@@ -438,6 +438,13 @@ void mwArm(void)
             beeper(BEEPER_ARMING);
 #endif
 
+#if defined(USE_ACC_ALT_HOLD) && defined(ACC)
+            // reset ACC integrate
+            if (feature(FEATURE_ACC_ALT_HOLD)) {
+                resetACCVel();
+            }
+#endif
+
             return;
         }
     }
@@ -717,12 +724,22 @@ static void subTaskMainSubprocesses(timeUs_t currentTimeUs)
     }
 #endif
 
-#if defined(BARO) || defined(SONAR)
+#if defined(BARO) || defined(SONAR) || defined(USE_ACC_ALT_HOLD)
     // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
     updateRcCommands();
-    if (sensors(SENSOR_BARO) || sensors(SENSOR_SONAR)) {
-        if (FLIGHT_MODE(BARO_MODE) || FLIGHT_MODE(SONAR_MODE)) {
-            applyAltHold(&masterConfig.airplaneConfig);
+#endif
+#if defined(USE_ACC_ALT_HOLD) && !(defined(BARO) || defined(SONAR))
+    if(sensors(SENSOR_ACC) && FLIGHT_MODE(ALT_HOLD_MODE)) {
+        applyAltHold(rxConfig(), &masterConfig.airplaneConfig);
+    }
+#else
+    if(sensors(SENSOR_ACC) && FLIGHT_MODE(ALT_HOLD_MODE)) {
+        applyAltHold(rxConfig(), &masterConfig.airplaneConfig);
+    } else {
+        if (sensors(SENSOR_BARO) || sensors(SENSOR_SONAR)) {
+            if (FLIGHT_MODE(BARO_MODE) || FLIGHT_MODE(SONAR_MODE)) {
+                applyAltHold(rxConfig(), &masterConfig.airplaneConfig);
+            }
         }
     }
 #endif
