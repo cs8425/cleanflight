@@ -22,15 +22,16 @@
 
 #include "platform.h"
 
-#include "build/version.h"
-
 #ifdef CMS
+
+#include "build/version.h"
 
 #include "drivers/system.h"
 
 #include "config/config_profile.h"
-#include "config/config_master.h"
 #include "config/feature.h"
+#include "config/parameter_group.h"
+#include "config/parameter_group_ids.h"
 
 #include "cms/cms.h"
 #include "cms/cms_types.h"
@@ -53,10 +54,12 @@ static long cmsx_Ledstrip_FeatureRead(void)
 
 static long cmsx_Ledstrip_FeatureWriteback(void)
 {
-    if (cmsx_FeatureLedstrip)
-        featureSet(FEATURE_LED_STRIP);
-    else
-        featureClear(FEATURE_LED_STRIP);
+    if (featureRead) {
+        if (cmsx_FeatureLedstrip)
+            featureSet(FEATURE_LED_STRIP);
+        else
+            featureClear(FEATURE_LED_STRIP);
+    }
 
     return 0;
 }

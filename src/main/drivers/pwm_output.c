@@ -17,6 +17,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <math.h>
 
 #include "platform.h"
@@ -82,7 +83,7 @@ static void pwmOCConfig(TIM_TypeDef *tim, uint8_t channel, uint16_t value, uint8
 #endif
 }
 
-static void pwmOutConfig(pwmOutputPort_t *port, const timerHardware_t *timerHardware, uint8_t mhz, uint16_t period, uint16_t value)
+static void pwmOutConfig(pwmOutputPort_t *port, const timerHardware_t *timerHardware, uint8_t mhz, uint16_t period, uint16_t value, uint8_t inversion)
 {
 #if defined(USE_HAL_DRIVER)
     TIM_HandleTypeDef* Handle = timerFindTimerHandle(timerHardware->tim);
@@ -90,7 +91,8 @@ static void pwmOutConfig(pwmOutputPort_t *port, const timerHardware_t *timerHard
 #endif
 
     configTimeBase(timerHardware->tim, period, mhz);
-    pwmOCConfig(timerHardware->tim, timerHardware->channel, value, timerHardware->output);
+    pwmOCConfig(timerHardware->tim, timerHardware->channel, value,
+        inversion ? timerHardware->output ^ TIMER_OUTPUT_INVERTED : timerHardware->output);
 
 #if defined(USE_HAL_DRIVER)
     HAL_TIM_PWM_Start(Handle, timerHardware->channel);
@@ -105,6 +107,12 @@ static void pwmOutConfig(pwmOutputPort_t *port, const timerHardware_t *timerHard
     port->tim = timerHardware->tim;
 
     *port->ccr = 0;
+}
+
+static void pwmWriteUnused(uint8_t index, uint16_t value)
+{
+    UNUSED(index);
+    UNUSED(value);
 }
 
 static void pwmWriteBrushed(uint8_t index, uint16_t value)
@@ -155,7 +163,8 @@ void pwmDisableMotors(void)
 
 void pwmEnableMotors(void)
 {
-    pwmMotorsEnabled = true;
+    /* check motors can be enabled */
+    pwmMotorsEnabled = (pwmWritePtr != pwmWriteUnused);
 }
 
 bool pwmAreMotorsEnabled(void)
@@ -163,18 +172,15 @@ bool pwmAreMotorsEnabled(void)
     return pwmMotorsEnabled;
 }
 
+static void pwmCompleteWriteUnused(uint8_t motorCount)
+{
+    UNUSED(motorCount);    
+}
+
 static void pwmCompleteOneshotMotorUpdate(uint8_t motorCount)
 {
     for (int index = 0; index < motorCount; index++) {
-        bool overflowed = false;
-        // If we have not already overflowed this timer
-        for (int j = 0; j < index; j++) {
-            if (motors[j].tim == motors[index].tim) {
-                overflowed = true;
-                break;
-            }
-        }
-        if (!overflowed) {
+        if (motors[index].forceOverflow) {
             timerForceOverflow(motors[index].tim);
         }
         // Set the compare register to 0, which stops the output pulsing if the timer overflows before the main loop completes again.
@@ -185,13 +191,13 @@ static void pwmCompleteOneshotMotorUpdate(uint8_t motorCount)
 
 void pwmCompleteMotorUpdate(uint8_t motorCount)
 {
-    if (pwmCompleteWritePtr) {
-        pwmCompleteWritePtr(motorCount);
-    }
+    pwmCompleteWritePtr(motorCount);
 }
 
 void motorInit(const motorConfig_t *motorConfig, uint16_t idlePulse, uint8_t motorCount)
 {
+    memset(motors, 0, sizeof(motors));
+    
     uint32_t timerMhzCounter = 0;
     bool useUnsyncedPwm = motorConfig->useUnsyncedPwm;
     bool isDigital = false;
@@ -234,29 +240,28 @@ void motorInit(const motorConfig_t *motorConfig, uint16_t idlePulse, uint8_t mot
 #endif
     }
 
-    if (!useUnsyncedPwm && !isDigital) {
-        pwmCompleteWritePtr = pwmCompleteOneshotMotorUpdate;
+    if (!isDigital) {
+        pwmCompleteWritePtr = useUnsyncedPwm ? pwmCompleteWriteUnused : pwmCompleteOneshotMotorUpdate;
     }
 
     for (int motorIndex = 0; motorIndex < MAX_SUPPORTED_MOTORS && motorIndex < motorCount; motorIndex++) {
         const ioTag_t tag = motorConfig->ioTags[motorIndex];
-
-        if (!tag) {
-            break;
-        }
-
         const timerHardware_t *timerHardware = timerGetByTag(tag, TIM_USE_ANY);
 
         if (timerHardware == NULL) {
-            /* flag failure and disable ability to arm */
-            break;
+            /* not enough motors initialised for the mixer or a break in the motors */
+            pwmWritePtr = pwmWriteUnused;
+            pwmCompleteWritePtr = pwmCompleteWriteUnused;
+            /* TODO: block arming and add reason system cannot arm */
+            return;
         }
 
         motors[motorIndex].io = IOGetByTag(tag);
 
 #ifdef USE_DSHOT
         if (isDigital) {
-            pwmDigitalMotorHardwareConfig(timerHardware, motorIndex, motorConfig->motorPwmProtocol);
+            pwmDigitalMotorHardwareConfig(timerHardware, motorIndex, motorConfig->motorPwmProtocol,
+                motorConfig->motorPwmInversion ? timerHardware->output ^ TIMER_OUTPUT_INVERTED : timerHardware->output);
             motors[motorIndex].enabled = true;
             continue;
         }
@@ -271,12 +276,22 @@ void motorInit(const motorConfig_t *motorConfig, uint16_t idlePulse, uint8_t mot
 
         if (useUnsyncedPwm) {
             const uint32_t hz = timerMhzCounter * 1000000;
-            pwmOutConfig(&motors[motorIndex], timerHardware, timerMhzCounter, hz / motorConfig->motorPwmRate, idlePulse);
+            pwmOutConfig(&motors[motorIndex], timerHardware, timerMhzCounter, hz / motorConfig->motorPwmRate, idlePulse, motorConfig->motorPwmInversion);
         } else {
-            pwmOutConfig(&motors[motorIndex], timerHardware, timerMhzCounter, 0xFFFF, 0);
+            pwmOutConfig(&motors[motorIndex], timerHardware, timerMhzCounter, 0xFFFF, 0, motorConfig->motorPwmInversion);
         }
+
+        bool timerAlreadyUsed = false;
+        for (int i = 0; i < motorIndex; i++) {
+            if (motors[i].tim == motors[motorIndex].tim) {
+                timerAlreadyUsed = true;
+                break;
+            }
+        }
+        motors[motorIndex].forceOverflow = !timerAlreadyUsed;
         motors[motorIndex].enabled = true;
     }
+
     pwmMotorsEnabled = true;
 }
 
@@ -335,7 +350,7 @@ void servoInit(const servoConfig_t *servoConfig)
             break;
         }
 
-        pwmOutConfig(&servos[servoIndex], timer, PWM_TIMER_MHZ, 1000000 / servoConfig->servoPwmRate, servoConfig->servoCenterPulse);
+        pwmOutConfig(&servos[servoIndex], timer, PWM_TIMER_MHZ, 1000000 / servoConfig->servoPwmRate, servoConfig->servoCenterPulse, 0);
         servos[servoIndex].enabled = true;
     }
 }

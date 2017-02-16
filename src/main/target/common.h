@@ -17,6 +17,7 @@
 
 #pragma once
 
+//#define USE_PARAMETER_GROUPS
 // type conversion warnings.
 // -Wconversion can be turned on to enable the process of eliminating these warnings
 //#pragma GCC diagnostic warning "-Wconversion"
@@ -34,6 +35,7 @@
 #define STM_FAST_TARGET
 #define I2C3_OVERCLOCK true
 #define I2C4_OVERCLOCK true
+#define TELEMETRY_IBUS
 #endif
 
 /****************************
@@ -43,10 +45,13 @@
 #define STM_FAST_TARGET
 #define USE_DSHOT
 #define I2C3_OVERCLOCK true
+#define TELEMETRY_IBUS
 #endif
 
 #ifdef STM32F3
 #define USE_DSHOT
+#undef GPS
+#define MINIMAL_CLI
 #endif
 
 #ifdef STM32F1
@@ -54,7 +59,7 @@
 #define USE_UART1_RX_DMA
 #define USE_UART1_TX_DMA
 
-#define CLI_MINIMAL_VERBOSITY
+#define MINIMAL_CLI
 #endif
 
 #define SERIAL_RX
@@ -70,7 +75,7 @@
 #define USE_PPM
 
 #if defined(STM_FAST_TARGET)
-#define MAX_AUX_CHANNELS                99
+#define MAX_AUX_CHANNELS                20
 #define TASK_GYROPID_DESIRED_PERIOD     125
 #define SCHEDULER_DELAY_LIMIT           10
 #else
@@ -85,7 +90,6 @@
 #define TELEMETRY
 #define TELEMETRY_FRSKY
 #define TELEMETRY_HOTT
-#define TELEMETRY_IBUS
 #define TELEMETRY_LTM
 #define TELEMETRY_SMARTPORT
 #define USE_SERVOS
@@ -100,7 +104,6 @@
 #define TELEMETRY_SRXL
 #define TELEMETRY_JETIEXBUS
 #define TELEMETRY_MAVLINK
-#define TELEMETRY_IBUS
 #define USE_RX_MSP
 #define USE_SERIALRX_JETIEXBUS
 #define VTX_COMMON
@@ -108,7 +111,5 @@
 #define VTX_SMARTAUDIO
 #define VTX_TRAMP
 #define USE_SENSOR_NAMES
-#else
-#define SKIP_CLI_COMMAND_HELP
 #endif
 

@@ -21,6 +21,10 @@
 
 #include "platform.h"
 
+#ifdef CMS
+
+#if defined(VTX) || defined(USE_RTC6705)
+
 #include "build/version.h"
 
 #include "cms/cms.h"
@@ -30,12 +34,9 @@
 #include "common/utils.h"
 
 #include "config/config_profile.h"
-#include "config/config_master.h"
 #include "config/feature.h"
-
-#ifdef CMS
-
-#if defined(VTX) || defined(USE_RTC6705)
+#include "config/parameter_group.h"
+#include "config/parameter_group_ids.h"
 
 static bool featureRead = false;
 static uint8_t cmsx_featureVtx = 0, cmsx_vtxBand, cmsx_vtxChannel;
@@ -52,10 +53,12 @@ static long cmsx_Vtx_FeatureRead(void)
 
 static long cmsx_Vtx_FeatureWriteback(void)
 {
-    if (cmsx_featureVtx)
-        featureSet(FEATURE_VTX);
-    else
-        featureClear(FEATURE_VTX);
+    if (featureRead) {
+        if (cmsx_featureVtx)
+            featureSet(FEATURE_VTX);
+        else
+            featureClear(FEATURE_VTX);
+    }
 
     return 0;
 }
