@@ -164,7 +164,8 @@ typedef struct controlRateConfig_s {
     uint16_t tpa_breakpoint;                // Breakpoint where TPA is activated
 } controlRateConfig_t;
 
-//!!TODO PG_DECLARE_ARRAY(controlRateConfig_t, MAX_CONTROL_RATE_PROFILE_COUNT, controlRateProfiles);
+#define MAX_CONTROL_RATE_PROFILE_COUNT 3
+PG_DECLARE_ARRAY(controlRateConfig_t, MAX_CONTROL_RATE_PROFILE_COUNT, controlRateProfiles);
 
 extern int16_t rcCommand[4];
 
@@ -201,8 +202,8 @@ bool areSticksInApModePosition(uint16_t ap_mode);
 throttleStatus_e calculateThrottleStatus(void);
 void processRcStickPositions(throttleStatus_e throttleStatus);
 
-bool isRangeActive(uint8_t auxChannelIndex, channelRange_t *range);
-void updateActivatedModes(modeActivationCondition_t *modeActivationConditions);
+bool isRangeActive(uint8_t auxChannelIndex, const channelRange_t *range);
+void updateActivatedModes(void);
 
 bool isAirmodeActive(void);
 

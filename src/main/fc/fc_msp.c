@@ -33,6 +33,7 @@
 #include "common/maths.h"
 #include "common/streambuf.h"
 
+#include "config/config_master.h"
 #include "config/config_eeprom.h"
 #include "config/config_profile.h"
 #include "config/feature.h"
@@ -58,6 +59,7 @@
 #include "fc/fc_core.h"
 #include "fc/fc_msp.h"
 #include "fc/fc_rc.h"
+#include "fc/rc_adjustments.h"
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
 
@@ -76,6 +78,7 @@
 #include "io/gps.h"
 #include "io/ledstrip.h"
 #include "io/motors.h"
+#include "io/osd.h"
 #include "io/serial.h"
 #include "io/serial_4way.h"
 #include "io/servos.h"
@@ -621,9 +624,9 @@ static bool mspFcProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst, mspPostProcessFn
 
     case MSP_NAME:
         {
-            const int nameLen = strlen(masterConfig.name);
+            const int nameLen = strlen(systemConfig()->name);
             for (int i = 0; i < nameLen; i++) {
-                sbufWriteU8(dst, masterConfig.name[i]);
+                sbufWriteU8(dst, systemConfig()->name[i]);
             }
         }
         break;
@@ -780,7 +783,7 @@ static bool mspFcProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst, mspPostProcessFn
 
     case MSP_MODE_RANGES:
         for (int i = 0; i < MAX_MODE_ACTIVATION_CONDITION_COUNT; i++) {
-            modeActivationCondition_t *mac = &modeActivationProfile()->modeActivationConditions[i];
+            const modeActivationCondition_t *mac = modeActivationConditions(i);
             const box_t *box = &boxes[mac->modeId];
             sbufWriteU8(dst, box->permanentId);
             sbufWriteU8(dst, mac->auxChannelIndex);
@@ -1126,14 +1129,14 @@ static bool mspFcProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst, mspPostProcessFn
             sbufWriteU8(dst, gyroConfig()->gyro_sync_denom);
             sbufWriteU8(dst, pidConfig()->pid_process_denom);
         }
-        sbufWriteU8(dst, motorConfig()->useUnsyncedPwm);
-        sbufWriteU8(dst, motorConfig()->motorPwmProtocol);
-        sbufWriteU16(dst, motorConfig()->motorPwmRate);
+        sbufWriteU8(dst, motorConfig()->dev.useUnsyncedPwm);
+        sbufWriteU8(dst, motorConfig()->dev.motorPwmProtocol);
+        sbufWriteU16(dst, motorConfig()->dev.motorPwmRate);
         sbufWriteU16(dst, (uint16_t)lrintf(motorConfig()->digitalIdleOffsetPercent * 100));
         sbufWriteU8(dst, gyroConfig()->gyro_use_32khz);
         //!!TODO gyro_isr_update to be added pending decision
         //sbufWriteU8(dst, gyroConfig()->gyro_isr_update);
-        sbufWriteU8(dst, motorConfig()->motorPwmInversion);
+        sbufWriteU8(dst, motorConfig()->dev.motorPwmInversion);
         break;
 
     case MSP_FILTER_CONFIG :
@@ -1493,13 +1496,13 @@ static mspResult_e mspFcProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
     case MSP_SET_ADVANCED_CONFIG:
         gyroConfigMutable()->gyro_sync_denom = sbufReadU8(src);
         pidConfigMutable()->pid_process_denom = sbufReadU8(src);
-        motorConfigMutable()->useUnsyncedPwm = sbufReadU8(src);
+        motorConfigMutable()->dev.useUnsyncedPwm = sbufReadU8(src);
 #ifdef USE_DSHOT
-        motorConfigMutable()->motorPwmProtocol = constrain(sbufReadU8(src), 0, PWM_TYPE_MAX - 1);
+        motorConfigMutable()->dev.motorPwmProtocol = constrain(sbufReadU8(src), 0, PWM_TYPE_MAX - 1);
 #else
-        motorConfigMutable()->motorPwmProtocol = constrain(sbufReadU8(src), 0, PWM_TYPE_BRUSHED);
+        motorConfigMutable()->dev.motorPwmProtocol = constrain(sbufReadU8(src), 0, PWM_TYPE_BRUSHED);
 #endif
-        motorConfigMutable()->motorPwmRate = sbufReadU16(src);
+        motorConfigMutable()->dev.motorPwmRate = sbufReadU16(src);
         if (sbufBytesRemaining(src) >= 2) {
             motorConfigMutable()->digitalIdleOffsetPercent = sbufReadU16(src) / 100.0f;
         }
@@ -1513,7 +1516,7 @@ static mspResult_e mspFcProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
         validateAndFixGyroConfig();
 
         if (sbufBytesRemaining(src)) {        
-            motorConfigMutable()->motorPwmInversion = sbufReadU8(src);
+            motorConfigMutable()->dev.motorPwmInversion = sbufReadU8(src);
         }
         break;
 
@@ -1619,20 +1622,20 @@ static mspResult_e mspFcProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
             // set all the other settings
             if ((int8_t)addr == -1) {
 #ifdef USE_MAX7456
-                vcdProfile()->video_system = sbufReadU8(src);
+                vcdProfileMutable()->video_system = sbufReadU8(src);
 #else
                 sbufReadU8(src); // Skip video system
 #endif
-                osdProfile()->units = sbufReadU8(src);
-                osdProfile()->rssi_alarm = sbufReadU8(src);
-                osdProfile()->cap_alarm = sbufReadU16(src);
-                osdProfile()->time_alarm = sbufReadU16(src);
-                osdProfile()->alt_alarm = sbufReadU16(src);
+                osdConfigMutable()->units = sbufReadU8(src);
+                osdConfigMutable()->rssi_alarm = sbufReadU8(src);
+                osdConfigMutable()->cap_alarm = sbufReadU16(src);
+                osdConfigMutable()->time_alarm = sbufReadU16(src);
+                osdConfigMutable()->alt_alarm = sbufReadU16(src);
             } else {
                 // set a position setting
                 const uint16_t pos  = sbufReadU16(src);
                 if (addr < OSD_ITEM_COUNT) {
-                    osdProfile()->item_pos[addr] = pos;
+                    osdConfigMutable()->item_pos[addr] = pos;
                 }
             }
         }
@@ -1916,9 +1919,9 @@ static mspResult_e mspFcProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
 #endif
 
     case MSP_SET_NAME:
-        memset(masterConfig.name, 0, ARRAYLEN(masterConfig.name));
+        memset(systemConfigMutable()->name, 0, ARRAYLEN(systemConfig()->name));
         for (unsigned int i = 0; i < MIN(MAX_NAME_LENGTH, dataSize); i++) {
-            masterConfig.name[i] = sbufReadU8(src);
+            systemConfigMutable()->name[i] = sbufReadU8(src);
         }
         break;
 

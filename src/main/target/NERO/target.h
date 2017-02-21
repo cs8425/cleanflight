@@ -88,7 +88,10 @@
 #define UART6_RX_PIN            PC7
 #define UART6_TX_PIN            PC6
 
-#define SERIAL_PORT_COUNT       4
+#define USE_SOFTSERIAL1
+#define USE_SOFTSERIAL2
+
+#define SERIAL_PORT_COUNT       6
 
 //#define USE_ESCSERIAL //TODO: make ESC serial F7 compatible
 //#define ESCSERIAL_TIMER_TX_HARDWARE 0 // PWM 1
@@ -117,8 +120,6 @@
 #define VBAT_ADC_PIN            PC3
 
 //#define USE_ESC_SENSOR
-#define LED_STRIP
-
 #define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
 
 #define DEFAULT_FEATURES        FEATURE_BLACKBOX

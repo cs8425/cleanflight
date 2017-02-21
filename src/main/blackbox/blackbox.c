@@ -35,6 +35,7 @@
 #include "common/maths.h"
 #include "common/utils.h"
 
+#include "config/config_master.h"
 #include "config/config_profile.h"
 #include "config/feature.h"
 #include "config/parameter_group.h"
@@ -1183,7 +1184,7 @@ static bool blackboxWriteSysinfo()
         BLACKBOX_PRINT_HEADER_LINE("Firmware type:%s",                    "Cleanflight");
         BLACKBOX_PRINT_HEADER_LINE("Firmware revision:%s %s (%s) %s", FC_FIRMWARE_NAME, FC_VERSION_STRING, shortGitRevision, targetName);
         BLACKBOX_PRINT_HEADER_LINE("Firmware date:%s %s",                 buildDate, buildTime);
-        BLACKBOX_PRINT_HEADER_LINE("Craft name:%s",                       masterConfig.name);
+        BLACKBOX_PRINT_HEADER_LINE("Craft name:%s",                       systemConfig()->name);
         BLACKBOX_PRINT_HEADER_LINE("P interval:%d/%d",                    blackboxConfig()->rate_num, blackboxConfig()->rate_denom);
         BLACKBOX_PRINT_HEADER_LINE("minthrottle:%d",                      motorConfig()->minthrottle);
         BLACKBOX_PRINT_HEADER_LINE("maxthrottle:%d",                      motorConfig()->maxthrottle);
@@ -1291,12 +1292,12 @@ static bool blackboxWriteSysinfo()
         BLACKBOX_PRINT_HEADER_LINE("rc_interpolation_interval:%d",        rxConfig()->rcInterpolationInterval);
         BLACKBOX_PRINT_HEADER_LINE("airmode_activate_throttle:%d",        rxConfig()->airModeActivateThreshold);
         BLACKBOX_PRINT_HEADER_LINE("serialrx_provider:%d",                rxConfig()->serialrx_provider);
-        BLACKBOX_PRINT_HEADER_LINE("unsynced_fast_pwm:%d",                motorConfig()->useUnsyncedPwm);
-        BLACKBOX_PRINT_HEADER_LINE("fast_pwm_protocol:%d",                motorConfig()->motorPwmProtocol);
-        BLACKBOX_PRINT_HEADER_LINE("motor_pwm_rate:%d",                   motorConfig()->motorPwmRate);
+        BLACKBOX_PRINT_HEADER_LINE("unsynced_fast_pwm:%d",                motorConfig()->dev.useUnsyncedPwm);
+        BLACKBOX_PRINT_HEADER_LINE("fast_pwm_protocol:%d",                motorConfig()->dev.motorPwmProtocol);
+        BLACKBOX_PRINT_HEADER_LINE("motor_pwm_rate:%d",                   motorConfig()->dev.motorPwmRate);
         BLACKBOX_PRINT_HEADER_LINE("digitalIdleOffset:%d",          (int)(motorConfig()->digitalIdleOffsetPercent * 100.0f));
-        BLACKBOX_PRINT_HEADER_LINE("debug_mode:%d",                       masterConfig.debug_mode);
-        BLACKBOX_PRINT_HEADER_LINE("features:%d",                         masterConfig.enabledFeatures);
+        BLACKBOX_PRINT_HEADER_LINE("debug_mode:%d",                       systemConfig()->debug_mode);
+        BLACKBOX_PRINT_HEADER_LINE("features:%d",                         featureConfig()->enabledFeatures);
 
         default:
             return true;
@@ -1475,9 +1476,11 @@ void handleBlackbox(timeUs_t currentTimeUs)
                 blackboxOpen();  
                 startBlackbox();
             }
+#ifdef USE_FLASHFS
             if (IS_RC_MODE_ACTIVE(BOXBLACKBOXERASE)) {
                 blackboxSetState(BLACKBOX_STATE_START_ERASE);
             }
+#endif
         break;
         case BLACKBOX_STATE_PREPARE_LOG_FILE:
             if (blackboxDeviceBeginLog()) {
@@ -1602,6 +1605,7 @@ void handleBlackbox(timeUs_t currentTimeUs)
                 blackboxSetState(BLACKBOX_STATE_STOPPED);
             }
         break;
+#ifdef USE_FLASHFS
         case BLACKBOX_STATE_START_ERASE:
 	        blackboxEraseAll();
 	        blackboxSetState(BLACKBOX_STATE_ERASING);
@@ -1609,7 +1613,7 @@ void handleBlackbox(timeUs_t currentTimeUs)
         break;
         case BLACKBOX_STATE_ERASING:
 	        if (isBlackboxErased()) {
-                //Done eraseing
+                //Done erasing
                 blackboxSetState(BLACKBOX_STATE_ERASED);
                 beeper(BEEPER_BLACKBOX_ERASE);
             }
@@ -1619,21 +1623,25 @@ void handleBlackbox(timeUs_t currentTimeUs)
                 blackboxSetState(BLACKBOX_STATE_STOPPED);
             }
         break;
+#endif
         default:
         break;
     }
 
     // Did we run out of room on the device? Stop!
     if (isBlackboxDeviceFull()) {
+#ifdef USE_FLASHFS
         if (blackboxState != BLACKBOX_STATE_ERASING 
             && blackboxState != BLACKBOX_STATE_START_ERASE
             && blackboxState != BLACKBOX_STATE_ERASED) {
+#endif
             blackboxSetState(BLACKBOX_STATE_STOPPED);
             // ensure we reset the test mode flag if we stop due to full memory card
             if (startedLoggingInTestMode) startedLoggingInTestMode = false;
+#ifdef USE_FLASHFS
         }
+#endif
     } else { // Only log in test mode if there is room!
-
         if(blackboxConfig()->on_motor_test) {
             // Handle Motor Test Mode
             if(inMotorTestMode()) {

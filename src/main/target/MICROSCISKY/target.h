@@ -69,8 +69,6 @@
 #define USE_I2C
 #define I2C_DEVICE (I2CDEV_2)
 
-#define LED_STRIP
-
 #define SPEKTRUM_BIND
 // USART2, PA3
 #define BIND_PIN                PA3
@@ -82,7 +80,6 @@
 #define SERIALRX_UART           SERIAL_PORT_USART2
 #define RX_CHANNELS_TAER
 
-#undef GPS
 #undef USE_SERVOS
 #define USE_QUAD_MIXER_ONLY
 

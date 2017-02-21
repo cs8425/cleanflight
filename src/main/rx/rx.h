@@ -101,27 +101,26 @@ typedef enum {
 
 #define RX_FAILSAFE_TYPE_COUNT 2
 
-typedef struct rxFailsafeChannelConfiguration_s {
+typedef struct rxFailsafeChannelConfig_s {
     uint8_t mode; // See rxFailsafeChannelMode_e
     uint8_t step;
-} rxFailsafeChannelConfiguration_t;
+} rxFailsafeChannelConfig_t;
 
-//!!TODO change to rxFailsafeChannelConfig_t
-PG_DECLARE_ARRAY(rxFailsafeChannelConfiguration_t, MAX_SUPPORTED_RC_CHANNEL_COUNT, rxFailsafeChannelConfigs);
+PG_DECLARE_ARRAY(rxFailsafeChannelConfig_t, MAX_SUPPORTED_RC_CHANNEL_COUNT, rxFailsafeChannelConfigs);
 
-typedef struct rxChannelRangeConfiguration_s {
+typedef struct rxChannelRangeConfig_s {
     uint16_t min;
     uint16_t max;
-} rxChannelRangeConfiguration_t;
+} rxChannelRangeConfig_t;
 
-//!!TODO change to rxChannelRangeConfig_t
-PG_DECLARE_ARRAY(rxChannelRangeConfiguration_t, NON_AUX_CHANNEL_COUNT, rxChannelRangeConfigs);
+PG_DECLARE_ARRAY(rxChannelRangeConfig_t, NON_AUX_CHANNEL_COUNT, rxChannelRangeConfigs);
 
 typedef struct rxConfig_s {
     uint8_t rcmap[MAX_MAPPABLE_RX_INPUTS];  // mapping of radio channels to internal RPYTA+ order
     uint8_t serialrx_provider;              // type of UART-based receiver (0 = spek 10, 1 = spek 11, 2 = sbus). Must be enabled by FEATURE_RX_SERIAL first.
     uint8_t sbus_inversion;                 // default sbus (Futaba, FrSKY) is inverted. Support for uninverted OpenLRS (and modified FrSKY) receivers.
-    uint8_t rx_spi_protocol;               // type of nrf24 protocol (0 = v202 250kbps). Must be enabled by FEATURE_RX_NRF24 first.
+    uint8_t halfDuplex;                     // allow rx to operate in half duplex mode on F4, ignored for F1 and F3.
+    uint8_t rx_spi_protocol;                // type of nrf24 protocol (0 = v202 250kbps). Must be enabled by FEATURE_RX_NRF24 first.
     uint32_t rx_spi_id;
     uint8_t rx_spi_rf_channel_count;
     uint8_t spektrum_sat_bind;              // number of bind pulses for Spektrum satellite receivers
@@ -141,9 +140,9 @@ typedef struct rxConfig_s {
 
     uint16_t rx_min_usec;
     uint16_t rx_max_usec;
-    rxFailsafeChannelConfiguration_t failsafe_channel_configurations[MAX_SUPPORTED_RC_CHANNEL_COUNT];
+    rxFailsafeChannelConfig_t failsafe_channel_configurations[MAX_SUPPORTED_RC_CHANNEL_COUNT];
 
-    rxChannelRangeConfiguration_t channelRanges[NON_AUX_CHANNEL_COUNT];
+    rxChannelRangeConfig_t channelRanges[NON_AUX_CHANNEL_COUNT];
 } rxConfig_t;
 
 PG_DECLARE(rxConfig_t, rxConfig);
@@ -174,7 +173,7 @@ void calculateRxChannelsAndUpdateFailsafe(timeUs_t currentTimeUs);
 void parseRcChannels(const char *input, rxConfig_t *rxConfig);
 
 void updateRSSI(timeUs_t currentTimeUs);
-void resetAllRxChannelRangeConfigurations(rxChannelRangeConfiguration_t *rxChannelRangeConfiguration);
+void resetAllRxChannelRangeConfigurations(rxChannelRangeConfig_t *rxChannelRangeConfig);
 
 void suspendRxSignal(void);
 void resumeRxSignal(void);

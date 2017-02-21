@@ -20,6 +20,7 @@
 #include <stdlib.h>
 
 #include "config/config_profile.h"
+#include "config/feature.h"
 
 #include "blackbox/blackbox.h"
 
@@ -34,11 +35,13 @@
 #include "drivers/light_led.h"
 #include "drivers/flash.h"
 #include "drivers/display.h"
+#include "drivers/serial.h"
 
 #include "fc/rc_adjustments.h"
 #include "fc/rc_controls.h"
 #include "fc/fc_core.h"
 
+#include "flight/altitudehold.h"
 #include "flight/failsafe.h"
 #include "flight/mixer.h"
 #include "flight/servos.h"
@@ -67,6 +70,8 @@
 #include "sensors/compass.h"
 
 #ifndef USE_PARAMETER_GROUPS
+#define featureConfig(x) (&masterConfig.featureConfig)
+#define systemConfig(x) (&masterConfig.systemConfig)
 #define motorConfig(x) (&masterConfig.motorConfig)
 #define flight3DConfig(x) (&masterConfig.flight3DConfig)
 #define servoConfig(x) (&masterConfig.servoConfig)
@@ -89,17 +94,18 @@
 #define mixerConfig(x) (&masterConfig.mixerConfig)
 #define airplaneConfig(x) (&masterConfig.airplaneConfig)
 #define failsafeConfig(x) (&masterConfig.failsafeConfig)
+#define serialPinConfig(x) (&masterConfig.serialPinConfig)
 #define serialConfig(x) (&masterConfig.serialConfig)
 #define telemetryConfig(x) (&masterConfig.telemetryConfig)
 #define ibusTelemetryConfig(x) (&masterConfig.telemetryConfig)
 #define ppmConfig(x) (&masterConfig.ppmConfig)
 #define pwmConfig(x) (&masterConfig.pwmConfig)
 #define adcConfig(x) (&masterConfig.adcConfig)
-#define beeperConfig(x) (&masterConfig.beeperConfig)
+#define beeperDevConfig(x) (&masterConfig.beeperDevConfig)
 #define sonarConfig(x) (&masterConfig.sonarConfig)
 #define ledStripConfig(x) (&masterConfig.ledStripConfig)
 #define statusLedConfig(x) (&masterConfig.statusLedConfig)
-#define osdProfile(x) (&masterConfig.osdProfile)
+#define osdConfig(x) (&masterConfig.osdProfile)
 #define vcdProfile(x) (&masterConfig.vcdProfile)
 #define sdcardConfig(x) (&masterConfig.sdcardConfig)
 #define blackboxConfig(x) (&masterConfig.blackboxConfig)
@@ -115,6 +121,8 @@
 #define displayPortProfileOled(x) (&masterConfig.displayPortProfileOled)
 
 
+#define featureConfigMutable(x) (&masterConfig.featureConfig)
+#define systemConfigMutable(x) (&masterConfig.systemConfig)
 #define motorConfigMutable(x) (&masterConfig.motorConfig)
 #define flight3DConfigMutable(x) (&masterConfig.flight3DConfig)
 #define servoConfigMutable(x) (&masterConfig.servoConfig)
@@ -142,7 +150,7 @@
 #define ppmConfigMutable(x) (&masterConfig.ppmConfig)
 #define pwmConfigMutable(x) (&masterConfig.pwmConfig)
 #define adcConfigMutable(x) (&masterConfig.adcConfig)
-#define beeperConfigMutable(x) (&masterConfig.beeperConfig)
+#define beeperDevConfigMutable(x) (&masterConfig.beeperDevConfig)
 #define sonarConfigMutable(x) (&masterConfig.sonarConfig)
 #define ledStripConfigMutable(x) (&masterConfig.ledStripConfig)
 #define statusLedConfigMutable(x) (&masterConfig.statusLedConfig)
@@ -161,14 +169,14 @@
 #define displayPortProfileMax7456Mutable(x) (&masterConfig.displayPortProfileMax7456)
 #define displayPortProfileOledMutable(x) (&masterConfig.displayPortProfileOled)
 
-#define servoParams(x) (&servoProfile()->servoConf[i])
+#define servoParams(x) (&servoProfile()->servoConf[x])
 #define adjustmentRanges(x) (&adjustmentProfile()->adjustmentRanges[x])
 #define rxFailsafeChannelConfigs(x) (&masterConfig.rxConfig.failsafe_channel_configurations[x])
 #define osdConfig(x) (&masterConfig.osdProfile)
 #define modeActivationConditions(x) (&masterConfig.modeActivationProfile.modeActivationConditions[x])
 
-#define servoParamsMutable(x) (&servoProfile()->servoConf[i])
-#define adjustmentRangesMutable(x) (&masterConfig.adjustmentProfile.adjustmentRanges[i])
+#define servoParamsMutable(x) (&servoProfile()->servoConf[x])
+#define adjustmentRangesMutable(x) (&masterConfig.adjustmentProfile.adjustmentRanges[x])
 #define rxFailsafeChannelConfigsMutable(x) (&masterConfig.rxConfig.>failsafe_channel_configurations[x])
 #define osdConfigMutable(x) (&masterConfig.osdProfile)
 #define modeActivationConditionsMutable(x) (&masterConfig.modeActivationProfile.modeActivationConditions[x])
@@ -180,7 +188,9 @@ typedef struct master_s {
     uint16_t size;
     uint8_t magic_be;                       // magic number, should be 0xBE
 
-    uint32_t enabledFeatures;
+    featureConfig_t featureConfig;
+
+    systemConfig_t systemConfig;
 
     // motor/esc/servo related stuff
     motorMixer_t customMotorMixer[MAX_SUPPORTED_MOTORS];
@@ -189,7 +199,6 @@ typedef struct master_s {
 
 #ifdef USE_SERVOS
     servoConfig_t servoConfig;
-    servoMixerConfig_t servoMixerConfig;
     servoMixer_t customServoMixer[MAX_SERVO_RULES];
     // Servo-related stuff
     servoProfile_t servoProfile;
@@ -205,7 +214,6 @@ typedef struct master_s {
 
     pidConfig_t pidConfig;
 
-    uint8_t debug_mode;                     // Processing denominator for PID controller vs gyro sampling rate
     uint8_t task_statistics;
 
     gyroConfig_t gyroConfig;
@@ -236,6 +244,7 @@ typedef struct master_s {
     airplaneConfig_t airplaneConfig;
 
     failsafeConfig_t failsafeConfig;
+    serialPinConfig_t serialPinConfig;
     serialConfig_t serialConfig;
     telemetryConfig_t telemetryConfig;
 
@@ -254,7 +263,7 @@ typedef struct master_s {
 #endif
 
 #ifdef BEEPER
-    beeperConfig_t beeperConfig;
+    beeperDevConfig_t beeperDevConfig;
 #endif
 
 #ifdef SONAR
@@ -318,7 +327,6 @@ typedef struct master_s {
     uint32_t beeper_off_flags;
     uint32_t preferred_beeper_off_flags;
 
-    char name[MAX_NAME_LENGTH + 1];
     char boardIdentifier[sizeof(TARGET_BOARD_IDENTIFIER)];
 
     uint8_t magic_ef;                       // magic number, should be 0xEF

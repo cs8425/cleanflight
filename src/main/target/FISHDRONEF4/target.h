@@ -66,7 +66,10 @@
 #define UART6_RX_PIN            PC7
 #define UART6_TX_PIN            PC6
 
-#define SERIAL_PORT_COUNT       4 // VCP, USART1, USART3, USART6
+#define USE_SOFTSERIAL1
+#define USE_SOFTSERIAL2
+
+#define SERIAL_PORT_COUNT       6 // VCP, USART1, USART3, USART6, SOFTSERIAL x 2
 
 #define USE_ESCSERIAL
 #define ESCSERIAL_TIMER_TX_HARDWARE 0 // PWM 1
@@ -131,10 +134,6 @@
 #define SERIALRX_UART           SERIAL_PORT_USART3
 
 // *************** Others **************************
-#define DISPLAY
-#define LED_STRIP
-#define OSD
-
 #define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
 
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE

@@ -45,15 +45,18 @@
 #include "sensors/gyro.h"
 #include "sensors/sensors.h"
 
+#include "fc/cli.h"
 #include "fc/config.h"
+#include "fc/fc_core.h"
+#include "fc/fc_rc.h"
+#include "fc/rc_adjustments.h"
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
-#include "fc/cli.h"
-#include "fc/fc_rc.h"
 
 #include "msp/msp_serial.h"
 
 #include "io/beeper.h"
+#include "io/gps.h"
 #include "io/motors.h"
 #include "io/servos.h"
 #include "io/serial.h"
@@ -67,12 +70,13 @@
 
 #include "telemetry/telemetry.h"
 
-#include "flight/mixer.h"
-#include "flight/servos.h"
-#include "flight/pid.h"
-#include "flight/failsafe.h"
 #include "flight/altitudehold.h"
+#include "flight/failsafe.h"
 #include "flight/imu.h"
+#include "flight/mixer.h"
+#include "flight/navigation.h"
+#include "flight/pid.h"
+#include "flight/servos.h"
 
 
 // June 2013     V2.2-dev
@@ -366,10 +370,10 @@ void processRx(timeUs_t currentTimeUs)
         updateInflightCalibrationState();
     }
 
-    updateActivatedModes(modeActivationProfile()->modeActivationConditions);
+    updateActivatedModes();
 
     if (!cliMode) {
-        updateAdjustmentStates(adjustmentProfile()->adjustmentRanges);
+        updateAdjustmentStates();
         processRcAdjustments(currentControlRateProfile);
     }
 
@@ -403,7 +407,7 @@ void processRx(timeUs_t currentTimeUs)
         LED1_OFF;
     }
 
-#ifdef  MAG
+#if defined(ACC) || defined(MAG)
     if (sensors(SENSOR_ACC) || sensors(SENSOR_MAG)) {
         if (IS_RC_MODE_ACTIVE(BOXMAG)) {
             if (!FLIGHT_MODE(MAG_MODE)) {
@@ -513,7 +517,7 @@ static void subTaskMainSubprocesses(timeUs_t currentTimeUs)
     if (isUsingSticksForArming() && rcData[THROTTLE] <= rxConfig()->mincheck
 #ifndef USE_QUAD_MIXER_ONLY
 #ifdef USE_SERVOS
-                && !((mixerConfig()->mixerMode == MIXER_TRI || mixerConfig()->mixerMode == MIXER_CUSTOM_TRI) && servoMixerConfig()->tri_unarmed_servo)
+                && !((mixerConfig()->mixerMode == MIXER_TRI || mixerConfig()->mixerMode == MIXER_CUSTOM_TRI) && servoConfig()->tri_unarmed_servo)
 #endif
                 && mixerConfig()->mixerMode != MIXER_AIRPLANE
                 && mixerConfig()->mixerMode != MIXER_FLYING_WING
@@ -544,6 +548,8 @@ static void subTaskMainSubprocesses(timeUs_t currentTimeUs)
     if (!cliMode && feature(FEATURE_BLACKBOX)) {
         handleBlackbox(currentTimeUs);
     }
+#else
+    UNUSED(currentTimeUs);
 #endif
 
 #ifdef TRANSPONDER
@@ -571,8 +577,6 @@ static void subTaskMotorUpdate(void)
 #ifdef USE_SERVOS
     // motor outputs are used as sources for servo mixing, so motors must be calculated using mixTable() before servos.
     if (isMixerUsingServos()) {
-        servoTable();
-        filterServos();
         writeServos();
     }
 #endif
