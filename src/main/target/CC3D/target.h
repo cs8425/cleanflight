@@ -65,8 +65,8 @@
 //#define USE_BARO_BMP280
 
 // External I2C MAG
-//#define MAG
-//#define USE_MAG_HMC5883
+#define MAG
+#define USE_MAG_HMC5883
 
 #define USE_VCP
 #define USE_UART1
@@ -106,7 +106,7 @@
 //#define SONAR_TRIGGER_PIN       PB5
 
 #undef GPS
-#undef MAG
+//#undef MAG
 
 #ifdef CC3D_OPBL
 #define SKIP_CLI_COMMAND_HELP
@@ -126,6 +126,7 @@
 
 #define DEFAULT_RX_FEATURE      FEATURE_RX_PPM
 
+
 // IO - from schematics
 #define TARGET_IO_PORTA         0xffff
 #define TARGET_IO_PORTB         0xffff
@@ -133,3 +134,37 @@
 
 #define USABLE_TIMER_CHANNEL_COUNT 12
 #define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) )
+
+
+
+// my setting
+#define DEFAULT_FEATURES        (FEATURE_MOTOR_STOP | FEATURE_TELEMETRY)
+
+#define USE_ACC_ALT_HOLD
+#define SKIP_CLI_COMMAND_HELP
+//#undef USE_SERVOS
+#undef BARO
+#undef SONAR
+#undef LED_STRIP
+#undef TRANSPONDER
+#undef USE_SERIAL_4WAY_BLHELI_INTERFACE
+#undef TELEMETRY_MAVLINK
+#undef TELEMETRY
+//#undef USE_SERIALRX_SPEKTRUM   // SRXL, DSM2 and DSMX protocol
+#undef USE_SERIALRX_SBUS       // Frsky and Futaba receivers
+#undef USE_SERIALRX_IBUS       // FlySky and Turnigy receivers
+#undef USE_SERIALRX_CRSF       // Team Black Sheep Crossfire protocol
+#undef USE_SERIALRX_SUMD       // Graupner Hott protocol
+#undef USE_SERIALRX_SUMH       // Graupner legacy protocol
+#undef USE_SERIALRX_XBUS       // JR
+#undef TELEMETRY_IBUS
+#undef USE_RX_V202
+#undef USE_RX_SYMA
+#undef USE_RX_INAV
+#undef USE_RX_H8_3D
+#undef USE_RX_CX10
+#undef CMS
+#undef VTX
+#undef VTX_CONTROL
+
+
