@@ -19,8 +19,7 @@
 
 #include "config/parameter_group.h"
 #include "drivers/io_types.h"
-
-#define MAX_SUPPORTED_MOTORS 12
+#include "drivers/pwm_output.h"
 
 #define QUAD_MOTOR_COUNT 4
 
@@ -105,22 +104,14 @@ typedef struct mixerConfig_s {
 PG_DECLARE(mixerConfig_t, mixerConfig);
 
 typedef struct motorConfig_s {
+    motorDevConfig_t dev;
+    float    digitalIdleOffsetPercent;
     uint16_t minthrottle;                   // Set the minimum throttle command sent to the ESC (Electronic Speed Controller). This is the minimum value that allow motors to run at a idle speed.
     uint16_t maxthrottle;                   // This is the maximum value for the ESCs at full power this value can be increased up to 2000
     uint16_t mincommand;                    // This is the value for the ESCs when they are not armed. In some cases, this value must be lowered down to 900 for some specific ESCs
-    uint16_t motorPwmRate;                  // The update rate of motor outputs (50-498Hz)
-    uint8_t  motorPwmProtocol;              // Pwm Protocol
-    uint8_t  motorPwmInversion;             // Active-High vs Active-Low. Useful for brushed FCs converted for brushless operation
-    uint8_t  useUnsyncedPwm;
-    float    digitalIdleOffsetPercent;
-    ioTag_t  ioTags[MAX_SUPPORTED_MOTORS];
 } motorConfig_t;
 
 PG_DECLARE(motorConfig_t, motorConfig);
-
-typedef struct airplaneConfig_s {
-    int8_t fixedwing_althold_dir;           // +1 or -1 for pitch/althold gain. later check if need more than just sign
-} airplaneConfig_t;
 
 #define CHANNEL_FORWARDING_DISABLED (uint8_t)0xFF
 
@@ -132,10 +123,8 @@ struct rxConfig_s;
 uint8_t getMotorCount();
 float getMotorMixRange();
 
-void mixerUseConfigs(airplaneConfig_t *airplaneConfigToUse);
-
 void mixerLoadMix(int index, motorMixer_t *customMixers);
-void mixerInit(mixerMode_e mixerMode, motorMixer_t *customMotorMixers);
+void mixerInit(mixerMode_e mixerMode);
 
 void mixerConfigureOutput(void);
 

@@ -33,9 +33,6 @@
 #define USE_SPI_DEVICE_1
 #define USE_SPI_DEVICE_2
 
-#define USE_I2C
-#define I2C_DEVICE (I2CDEV_2) // Flex port - SCL/PB10, SDA/PB11
-
 #define MPU6000_CS_GPIO         GPIOA
 #define MPU6000_CS_PIN          PA4
 #define MPU6000_SPI_INSTANCE    SPI1
@@ -58,6 +55,9 @@
 // MPU6000 interrupts
 #define USE_MPU_DATA_READY_SIGNAL
 
+//#define USE_I2C
+//#define I2C_DEVICE (I2CDEV_2) // Flex port - SCL/PB10, SDA/PB11
+
 // External I2C BARO
 //#define BARO
 //#define USE_BARO_MS5611
@@ -71,21 +71,19 @@
 #define USE_VCP
 #define USE_UART1
 #define USE_UART3
-
-#ifdef CC3D_OPBL
-#define SERIAL_PORT_COUNT       3
-#else
 #define USE_SOFTSERIAL1
-#define SERIAL_PORT_COUNT       4
+#define USE_SOFTSERIAL2
+
+#define SERIAL_PORT_COUNT       5
+
+#ifndef CC3D_OPBL
+#define SOFTSERIAL1_TX_PIN      PB5 // PWM 2
+#define SOFTSERIAL1_RX_PIN      PB0 // PWM 3
 #endif
 
 #ifdef USE_UART1_RX_DMA
 #undef USE_UART1_RX_DMA
 #endif
-
-#define SOFTSERIAL_1_TIMER      TIM3
-#define SOFTSERIAL_1_TIMER_TX_HARDWARE 1 // PWM 2
-#define SOFTSERIAL_1_TIMER_RX_HARDWARE 2 // PWM 3
 
 #define UART3_RX_PIN            PB11
 #define UART3_TX_PIN            PB10
@@ -105,7 +103,6 @@
 //#define SONAR_ECHO_PIN          PB0
 //#define SONAR_TRIGGER_PIN       PB5
 
-#undef GPS
 #undef MAG
 
 #ifdef CC3D_OPBL
@@ -113,7 +110,6 @@
 //#undef USE_SERVOS
 #undef BARO
 #undef SONAR
-#undef LED_STRIP
 #undef USE_SERIAL_4WAY_BLHELI_INTERFACE
 //#undef USE_SERIALRX_SPEKTRUM   // SRXL, DSM2 and DSMX protocol
 //#undef USE_SERIALRX_SBUS       // Frsky and Futaba receivers
@@ -124,6 +120,7 @@
 #undef USE_SERIALRX_XBUS       // JR
 #endif
 
+#undef LED_STRIP
 #define DEFAULT_RX_FEATURE      FEATURE_RX_PPM
 
 // IO - from schematics

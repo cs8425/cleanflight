@@ -45,7 +45,9 @@
 #define USE_UART1
 #define USE_UART2
 #define USE_UART3
-#define SERIAL_PORT_COUNT       3
+#define USE_SOFTSERIAL1
+#define USE_SOFTSERIAL2
+#define SERIAL_PORT_COUNT       5
 
 #define UART3_RX_PIN            PB11
 #define UART3_TX_PIN            PB10
@@ -58,11 +60,6 @@
 #define VBAT_ADC_PIN            PA4
 #define RSSI_ADC_PIN            PA1
 #define EXTERNAL1_ADC_PIN       PA5
-
-
-#define LED_STRIP
-
-#undef GPS
 
 #define SPEKTRUM_BIND
 // USART2, PA3

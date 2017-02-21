@@ -22,6 +22,13 @@
 
 #include "config/parameter_group.h"
 
+#include "drivers/adc.h"
+#include "drivers/flash.h"
+#include "drivers/rx_pwm.h"
+#include "drivers/sdcard.h"
+#include "drivers/sound_beeper.h"
+#include "drivers/vcd.h"
+
 #if FLASH_SIZE <= 128
 #define MAX_PROFILE_COUNT 2
 #else
@@ -64,9 +71,26 @@ typedef enum {
 
 typedef struct systemConfig_s {
     uint8_t debug_mode;
+    char name[MAX_NAME_LENGTH + 1];
 } systemConfig_t;
 
-//!!TODOPG_DECLARE(systemConfig_t, systemConfig);
+PG_DECLARE(systemConfig_t, systemConfig);
+PG_DECLARE(adcConfig_t, adcConfig);
+PG_DECLARE(beeperDevConfig_t, beeperDevConfig);
+PG_DECLARE(flashConfig_t, flashConfig);
+PG_DECLARE(ppmConfig_t, ppmConfig);
+PG_DECLARE(pwmConfig_t, pwmConfig);
+PG_DECLARE(vcdProfile_t, vcdProfile);
+PG_DECLARE(sdcardConfig_t, sdcardConfig);
+
+
+/*typedef struct beeperConfig_s {
+    uint32_t beeper_off_flags;
+    uint32_t preferred_beeper_off_flags;
+} beeperConfig_t;
+PG_DECLARE(beeperConfig_t, beeperConfig);
+*/
+
 struct profile_s;
 extern struct profile_s *currentProfile;
 struct controlRateConfig_s;

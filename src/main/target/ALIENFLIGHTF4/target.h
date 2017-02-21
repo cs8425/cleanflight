@@ -121,7 +121,10 @@
 //#define UART5_RX_PIN            PD2
 //#define UART5_TX_PIN            PC12
 
-#define SERIAL_PORT_COUNT       4
+#define USE_SOFTSERIAL1
+#define USE_SOFTSERIAL2
+
+#define SERIAL_PORT_COUNT       6
 
 #define USE_ESCSERIAL
 #define ESCSERIAL_TIMER_TX_HARDWARE 0 // PWM 1
@@ -148,9 +151,6 @@
 #define CURRENT_METER_ADC_PIN   PC1
 #define RSSI_ADC_PIN            PC4
 #define EXTERNAL1_ADC_GPIO_PIN  PC5
-
-// LED strip configuration using RC5 pin.
-#define LED_STRIP
 
 #define SPEKTRUM_BIND
 // USART2, PA3

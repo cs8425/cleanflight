@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -32,6 +33,7 @@
 
 #ifdef OSD
 
+#include "blackbox/blackbox.h"
 #include "blackbox/blackbox_io.h"
 
 #include "build/debug.h"
@@ -39,8 +41,10 @@
 
 #include "common/printf.h"
 #include "common/maths.h"
+#include "common/typeconversion.h"
 #include "common/utils.h"
 
+#include "config/config_master.h"
 #include "config/config_profile.h"
 #include "config/feature.h"
 #include "config/parameter_group.h"
@@ -59,12 +63,21 @@
 
 #include "io/asyncfatfs/asyncfatfs.h"
 #include "io/flashfs.h"
+#include "io/gps.h"
 #include "io/osd.h"
 #include "io/vtx.h"
 
 #include "fc/config.h"
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
+
+#include "flight/imu.h"
+
+#include "rx/rx.h"
+
+#include "sensors/barometer.h"
+#include "sensors/battery.h"
+#include "sensors/sensors.h"
 
 #ifdef USE_HARDWARE_REVISION_DETECTION
 #include "hardware_revision.h"
@@ -127,7 +140,7 @@ static displayPort_t *osdDisplayPort;
  */
 static char osdGetAltitudeSymbol()
 {
-    switch (osdProfile()->units) {
+    switch (osdConfig()->units) {
         case OSD_UNIT_IMPERIAL:
             return 0xF;
         default:
@@ -141,7 +154,7 @@ static char osdGetAltitudeSymbol()
  */
 static int32_t osdGetAltitude(int32_t alt)
 {
-    switch (osdProfile()->units) {
+    switch (osdConfig()->units) {
         case OSD_UNIT_IMPERIAL:
             return (alt * 328) / 100; // Convert to feet / 100
         default:
@@ -151,11 +164,11 @@ static int32_t osdGetAltitude(int32_t alt)
 
 static void osdDrawSingleElement(uint8_t item)
 {
-    if (!VISIBLE(osdProfile()->item_pos[item]) || BLINK(item))
+    if (!VISIBLE(osdConfig()->item_pos[item]) || BLINK(item))
         return;
 
-    uint8_t elemPosX = OSD_X(osdProfile()->item_pos[item]);
-    uint8_t elemPosY = OSD_Y(osdProfile()->item_pos[item]);
+    uint8_t elemPosX = OSD_X(osdConfig()->item_pos[item]);
+    uint8_t elemPosY = OSD_Y(osdConfig()->item_pos[item]);
     char buff[32];
 
     switch(item) {
@@ -248,12 +261,12 @@ static void osdDrawSingleElement(uint8_t item)
 
         case OSD_CRAFT_NAME:
         {
-            if (strlen(masterConfig.name) == 0)
+            if (strlen(systemConfig()->name) == 0)
                 strcpy(buff, "CRAFT_NAME");
             else {
                 for (uint8_t i = 0; i < MAX_NAME_LENGTH; i++) {
-                    buff[i] = toupper((unsigned char)masterConfig.name[i]);
-                    if (masterConfig.name[i] == 0)
+                    buff[i] = toupper((unsigned char)systemConfig()->name[i]);
+                    if (systemConfig()->name[i] == 0)
                         break;
                 }
             }
@@ -314,7 +327,7 @@ static void osdDrawSingleElement(uint8_t item)
             pitchAngle = (pitchAngle / 8) - 41; // 41 = 4 * 9 + 5
 
             for (int8_t x = -4; x <= 4; x++) {
-                int y = (rollAngle * x) / 64;
+                int y = (-rollAngle * x) / 64;
                 y -= pitchAngle;
                 // y += 41; // == 4 * 9 + 5
                 if (y >= 0 && y <= 81) {
@@ -380,8 +393,8 @@ static void osdDrawSingleElement(uint8_t item)
 
         case OSD_PIDRATE_PROFILE:
         {
-            uint8_t profileIndex = masterConfig.current_profile_index;
-            uint8_t rateProfileIndex = masterConfig.profile[profileIndex].activeRateProfile;
+            const uint8_t profileIndex = masterConfig.current_profile_index;
+            const uint8_t rateProfileIndex = masterConfig.profile[profileIndex].activeRateProfile;
             sprintf(buff, "%d-%d", profileIndex + 1, rateProfileIndex + 1);
             break;
         }
@@ -528,15 +541,13 @@ void osdInit(displayPort_t *osdDisplayPortToUse)
 
 void osdUpdateAlarms(void)
 {
-    osd_profile_t *pOsdProfile = &masterConfig.osdProfile;
-
     // This is overdone?
-    // uint16_t *itemPos = osdProfile()->item_pos;
+    // uint16_t *itemPos = osdConfig()->item_pos;
 
     int32_t alt = osdGetAltitude(baro.BaroAlt) / 100;
     statRssi = rssi * 100 / 1024;
 
-    if (statRssi < pOsdProfile->rssi_alarm)
+    if (statRssi < osdConfig()->rssi_alarm)
         SET_BLINK(OSD_RSSI_VALUE);
     else
         CLR_BLINK(OSD_RSSI_VALUE);
@@ -554,17 +565,17 @@ void osdUpdateAlarms(void)
     else
         CLR_BLINK(OSD_GPS_SATS);
 
-    if (flyTime / 60 >= pOsdProfile->time_alarm && ARMING_FLAG(ARMED))
+    if (flyTime / 60 >= osdConfig()->time_alarm && ARMING_FLAG(ARMED))
         SET_BLINK(OSD_FLYTIME);
     else
         CLR_BLINK(OSD_FLYTIME);
 
-    if (mAhDrawn >= pOsdProfile->cap_alarm)
+    if (mAhDrawn >= osdConfig()->cap_alarm)
         SET_BLINK(OSD_MAH_DRAWN);
     else
         CLR_BLINK(OSD_MAH_DRAWN);
 
-    if (alt >= pOsdProfile->alt_alarm)
+    if (alt >= osdConfig()->alt_alarm)
         SET_BLINK(OSD_ALTITUDE);
     else
         CLR_BLINK(OSD_ALTITUDE);

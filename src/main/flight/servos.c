@@ -38,11 +38,11 @@
 #include "rx/rx.h"
 
 #include "io/gimbal.h"
-#include "io/servos.h"
 
+#include "flight/imu.h"
 #include "flight/mixer.h"
 #include "flight/pid.h"
-#include "flight/imu.h"
+#include "flight/servos.h"
 
 #include "fc/config.h"
 #include "fc/rc_controls.h"
@@ -52,11 +52,8 @@
 
 extern mixerMode_e currentMixerMode;
 
-static servoMixerConfig_t *servoMixerConfig;
-
 static uint8_t servoRuleCount = 0;
 static servoMixer_t currentServoMixer[MAX_SERVO_RULES];
-static gimbalConfig_t *gimbalConfig;
 int16_t servo[MAX_SUPPORTED_SERVOS];
 static int useServo;
 static servoParam_t *servoConf;
@@ -114,6 +111,12 @@ static const servoMixer_t servoMixerGimbal[] = {
 };
 
 
+// Custom mixer configuration
+typedef struct mixerRules_s {
+    uint8_t servoRuleCount;
+    const servoMixer_t *rule;
+} mixerRules_t;
+
 const mixerRules_t servoMixers[] = {
     { 0, NULL },                // entry 0
     { COUNT_SERVO_RULES(servoMixerTri), servoMixerTri },       // MULTITYPE_TRI
@@ -144,19 +147,15 @@ const mixerRules_t servoMixers[] = {
     { 0, NULL },
 };
 
-static servoMixer_t *customServoMixers;
-
-void servoUseConfigs(servoMixerConfig_t *servoMixerConfigToUse, servoParam_t *servoParamsToUse, struct gimbalConfig_s *gimbalConfigToUse, struct channelForwardingConfig_s *channelForwardingConfigToUse)
+void servoUseConfigs(servoParam_t *servoParamsToUse, struct channelForwardingConfig_s *channelForwardingConfigToUse)
 {
-    servoMixerConfig = servoMixerConfigToUse;
     servoConf = servoParamsToUse;
-    gimbalConfig = gimbalConfigToUse;
     channelForwardingConfig = channelForwardingConfigToUse;
 }
 
 int16_t determineServoMiddleOrForwardFromChannel(servoIndex_e servoIndex)
 {
-    uint8_t channelToForwardFrom = servoConf[servoIndex].forwardFromChannel;
+    const uint8_t channelToForwardFrom = servoConf[servoIndex].forwardFromChannel;
 
     if (channelToForwardFrom != CHANNEL_FORWARDING_DISABLED && channelToForwardFrom < rxRuntimeConfig.channelCount) {
         return rcData[channelToForwardFrom];
@@ -164,7 +163,6 @@ int16_t determineServoMiddleOrForwardFromChannel(servoIndex_e servoIndex)
 
     return servoConf[servoIndex].middle;
 }
-
 
 int servoDirection(int servoIndex, int inputSource)
 {
@@ -175,10 +173,8 @@ int servoDirection(int servoIndex, int inputSource)
         return 1;
 }
 
-void servoMixerInit(servoMixer_t *initialCustomServoMixers)
+void servosInit(void)
 {
-    customServoMixers = initialCustomServoMixers;
-
     // enable servos for mixes that require them. note, this shifts motor counts.
     useServo = mixers[currentMixerMode].useServo;
     // if we want camstab/trig, that also enables servos, even if mixer doesn't
@@ -200,10 +196,10 @@ void loadCustomServoMixer(void)
     // load custom mixer into currentServoMixer
     for (uint8_t i = 0; i < MAX_SERVO_RULES; i++) {
         // check if done
-        if (customServoMixers[i].rate == 0)
+        if (customServoMixers(i)->rate == 0)
             break;
 
-        currentServoMixer[i] = customServoMixers[i];
+        currentServoMixer[i] = *customServoMixers(i);
         servoRuleCount++;
     }
 }
@@ -269,10 +265,15 @@ static void updateGimbalServos(uint8_t firstServoIndex)
     pwmWriteServo(firstServoIndex + 1, servo[SERVO_GIMBAL_ROLL]);
 }
 
+static void servoTable(void);
+static void filterServos(void);
+
 void writeServos(void)
 {
-    uint8_t servoIndex = 0;
+    servoTable();
+    filterServos();
 
+    uint8_t servoIndex = 0;
     switch (currentMixerMode) {
     case MIXER_BICOPTER:
         pwmWriteServo(servoIndex++, servo[SERVO_BICOPTER_LEFT]);
@@ -281,7 +282,7 @@ void writeServos(void)
 
     case MIXER_TRI:
     case MIXER_CUSTOM_TRI:
-        if (servoMixerConfig()->tri_unarmed_servo) {
+        if (servoConfig()->tri_unarmed_servo) {
             // if unarmed flag set, we always move servo
             pwmWriteServo(servoIndex++, servo[SERVO_RUDDER]);
         } else {
@@ -411,7 +412,7 @@ STATIC_UNIT_TESTED void servoMixer(void)
 }
 
 
-void servoTable(void)
+static void servoTable(void)
 {
     // airplane / servo mixes
     switch (currentMixerMode) {
@@ -466,7 +467,7 @@ bool isMixerUsingServos(void)
     return useServo;
 }
 
-void filterServos(void)
+static void filterServos(void)
 {
     static int16_t servoIdx;
     static bool servoFilterIsSet;
@@ -476,10 +477,10 @@ void filterServos(void)
     uint32_t startTime = micros();
 #endif
 
-    if (servoMixerConfig()->servo_lowpass_enable) {
+    if (servoConfig()->servo_lowpass_freq) {
         for (servoIdx = 0; servoIdx < MAX_SUPPORTED_SERVOS; servoIdx++) {
             if (!servoFilterIsSet) {
-                biquadFilterInitLPF(&servoFilter[servoIdx], servoMixerConfig()->servo_lowpass_freq, targetPidLooptime);
+                biquadFilterInitLPF(&servoFilter[servoIdx], servoConfig()->servo_lowpass_freq, targetPidLooptime);
                 servoFilterIsSet = true;
             }
 

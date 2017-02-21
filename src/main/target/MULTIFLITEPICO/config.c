@@ -20,6 +20,7 @@
 
 #include <platform.h>
 
+#ifdef TARGET_CONFIG
 #include "common/axis.h"
 #include "common/maths.h"
 
@@ -70,7 +71,7 @@ void targetConfiguration(master_t *config)
     config->failsafeConfig.failsafe_delay = 2;
     config->failsafeConfig.failsafe_off_delay = 0;
 
-    config->motorConfig.motorPwmRate = 17000;
+    config->motorConfig.dev.motorPwmRate = 17000;
 
     config->gyroConfig.gyro_sync_denom = 4;
     config->pidConfig.pid_process_denom = 1;
@@ -84,5 +85,5 @@ void targetConfiguration(master_t *config)
 
     config->profile[0].controlRateProfile[0].rcRate8 = 70;
     config->profile[0].pidProfile.I8[PIDLEVEL] = 40;
-
 }
+#endif

@@ -20,6 +20,7 @@
 
 #include <platform.h>
 
+#ifdef TARGET_CONFIG
 #include "common/axis.h"
 
 #include "drivers/compass.h"
@@ -85,7 +86,7 @@ void targetConfiguration(master_t *config)
     config->compassConfig.mag_hardware = MAG_NONE;            // disabled by default
 
     if (hardwareMotorType == MOTOR_BRUSHED) {
-        config->motorConfig.motorPwmRate = BRUSHED_MOTORS_PWM_RATE;
+        config->motorConfig.dev.motorPwmRate = BRUSHED_MOTORS_PWM_RATE;
         config->pidConfig.pid_process_denom = 1;
     }
 
@@ -105,3 +106,4 @@ void targetConfiguration(master_t *config)
     config->customMotorMixer[6] = (motorMixer_t){ 1.0f, -1.0f,  0.414178f,  1.0f };    // MIDREAR_R
     config->customMotorMixer[7] = (motorMixer_t){ 1.0f,  1.0f,  0.414178f, -1.0f };    // MIDREAR_L
 }
+#endif

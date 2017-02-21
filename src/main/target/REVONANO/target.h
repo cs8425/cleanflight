@@ -64,7 +64,10 @@
 #define UART2_RX_PIN            PA3
 #define UART2_TX_PIN            PA2
 
-#define SERIAL_PORT_COUNT       3 
+#define USE_SOFTSERIAL1
+#define USE_SOFTSERIAL2
+
+#define SERIAL_PORT_COUNT       5
 
 #define USE_ESCSERIAL
 #define ESCSERIAL_TIMER_TX_HARDWARE 0 
@@ -75,17 +78,12 @@
 #define USE_I2C
 #define I2C_DEVICE (I2CDEV_3)
 
+#undef LED_STRIP
+
 #define USE_ADC
 #define CURRENT_METER_ADC_PIN   PA7
 #define VBAT_ADC_PIN            PA6
 #define RSSI_ADC_PIN            PA5
-
-#define GPS
-#define BLACKBOX
-#define TELEMETRY
-#define SERIAL_RX
-#define USE_SERVOS
-#define USE_CLI
 
 #define SPEKTRUM_BIND
 // USART2, PA3

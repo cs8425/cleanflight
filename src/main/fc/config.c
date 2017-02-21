@@ -117,6 +117,16 @@ static void resetAccelerometerTrims(flightDynamicsTrims_t *accelerometerTrims)
     accelerometerTrims->values.yaw = 0;
 }
 
+static void resetCompassConfig(compassConfig_t* compassConfig)
+{
+    compassConfig->mag_align = ALIGN_DEFAULT;
+#ifdef MAG_INT_EXTI
+    compassConfig->interruptTag = IO_TAG(MAG_INT_EXTI);
+#else
+    compassConfig->interruptTag = IO_TAG_NONE;
+#endif
+}
+
 static void resetControlRateConfig(controlRateConfig_t *controlRateConfig)
 {
     controlRateConfig->rcRate8 = 100;
@@ -176,8 +186,8 @@ static void resetPidProfile(pidProfile_t *pidProfile)
     pidProfile->pidAtMinThrottle = PID_STABILISATION_ON;
     pidProfile->levelAngleLimit = 55;
     pidProfile->levelSensitivity = 55;
-    pidProfile->setpointRelaxRatio = 25;
-    pidProfile->dtermSetpointWeight = 190;
+    pidProfile->setpointRelaxRatio = 20;
+    pidProfile->dtermSetpointWeight = 100;
     pidProfile->yawRateAccelLimit = 10.0f;
     pidProfile->rateAccelLimit = 0.0f;
     pidProfile->itermThrottleThreshold = 350;
@@ -241,13 +251,15 @@ void resetLedStripConfig(ledStripConfig_t *ledStripConfig)
 #ifdef USE_SERVOS
 void resetServoConfig(servoConfig_t *servoConfig)
 {
-    servoConfig->servoCenterPulse = 1500;
-    servoConfig->servoPwmRate = 50;
+    servoConfig->dev.servoCenterPulse = 1500;
+    servoConfig->dev.servoPwmRate = 50;
+    servoConfig->tri_unarmed_servo = 1;
+    servoConfig->servo_lowpass_freq = 0;
 
     int servoIndex = 0;
     for (int i = 0; i < USABLE_TIMER_CHANNEL_COUNT && servoIndex < MAX_SUPPORTED_SERVOS; i++) {
         if (timerHardware[i].usageFlags & TIM_USE_SERVO) {
-            servoConfig->ioTags[servoIndex] = timerHardware[i].tag;
+            servoConfig->dev.ioTags[servoIndex] = timerHardware[i].tag;
             servoIndex++;
         }
     }
@@ -258,22 +270,22 @@ void resetMotorConfig(motorConfig_t *motorConfig)
 {
 #ifdef BRUSHED_MOTORS
     motorConfig->minthrottle = 1000;
-    motorConfig->motorPwmRate = BRUSHED_MOTORS_PWM_RATE;
-    motorConfig->motorPwmProtocol = PWM_TYPE_BRUSHED;
-    motorConfig->useUnsyncedPwm = true;
+    motorConfig->dev.motorPwmRate = BRUSHED_MOTORS_PWM_RATE;
+    motorConfig->dev.motorPwmProtocol = PWM_TYPE_BRUSHED;
+    motorConfig->dev.useUnsyncedPwm = true;
 #else
 #ifdef BRUSHED_ESC_AUTODETECT
     if (hardwareMotorType == MOTOR_BRUSHED) {
         motorConfig->minthrottle = 1000;
-        motorConfig->motorPwmRate = BRUSHED_MOTORS_PWM_RATE;
-        motorConfig->motorPwmProtocol = PWM_TYPE_BRUSHED;
-        motorConfig->useUnsyncedPwm = true;
+        motorConfig->dev.motorPwmRate = BRUSHED_MOTORS_PWM_RATE;
+        motorConfig->dev.motorPwmProtocol = PWM_TYPE_BRUSHED;
+        motorConfig->dev.useUnsyncedPwm = true;
     } else
 #endif
     {
         motorConfig->minthrottle = 1070;
-        motorConfig->motorPwmRate = BRUSHLESS_MOTORS_PWM_RATE;
-        motorConfig->motorPwmProtocol = PWM_TYPE_ONESHOT125;
+        motorConfig->dev.motorPwmRate = BRUSHLESS_MOTORS_PWM_RATE;
+        motorConfig->dev.motorPwmProtocol = PWM_TYPE_ONESHOT125;
     }
 #endif
     motorConfig->maxthrottle = 2000;
@@ -283,7 +295,7 @@ void resetMotorConfig(motorConfig_t *motorConfig)
     int motorIndex = 0;
     for (int i = 0; i < USABLE_TIMER_CHANNEL_COUNT && motorIndex < MAX_SUPPORTED_MOTORS; i++) {
         if (timerHardware[i].usageFlags & TIM_USE_MOTOR) {
-            motorConfig->ioTags[motorIndex] = timerHardware[i].tag;
+            motorConfig->dev.ioTags[motorIndex] = timerHardware[i].tag;
             motorIndex++;
         }
     }
@@ -340,16 +352,16 @@ void resetAdcConfig(adcConfig_t *adcConfig)
 
 
 #ifdef BEEPER
-void resetBeeperConfig(beeperConfig_t *beeperConfig)
+void resetBeeperConfig(beeperDevConfig_t *beeperDevConfig)
 {
 #ifdef BEEPER_INVERTED
-    beeperConfig->isOpenDrain = false;
-    beeperConfig->isInverted = true;
+    beeperDevConfig->isOpenDrain = false;
+    beeperDevConfig->isInverted = true;
 #else
-    beeperConfig->isOpenDrain = true;
-    beeperConfig->isInverted = false;
+    beeperDevConfig->isOpenDrain = true;
+    beeperDevConfig->isInverted = false;
 #endif
-    beeperConfig->ioTag = IO_TAG(BEEPER);
+    beeperDevConfig->ioTag = IO_TAG(BEEPER);
 }
 #endif
 
@@ -430,6 +442,175 @@ void resetBatteryConfig(batteryConfig_t *batteryConfig)
     batteryConfig->consumptionWarningPercentage = 10;
 }
 
+// Default pin (NONE).
+// XXX Does this mess belong here???
+#ifdef USE_UART1
+# if !defined(UART1_RX_PIN)
+#  define UART1_RX_PIN NONE
+# endif
+# if !defined(UART1_TX_PIN)
+#  define UART1_TX_PIN NONE
+# endif
+#endif
+
+#ifdef USE_UART2
+# if !defined(UART2_RX_PIN)
+#  define UART2_RX_PIN NONE
+# endif
+# if !defined(UART2_TX_PIN)
+#  define UART2_TX_PIN NONE
+# endif
+#endif
+
+#ifdef USE_UART3
+# if !defined(UART3_RX_PIN)
+#  define UART3_RX_PIN NONE
+# endif
+# if !defined(UART3_TX_PIN)
+#  define UART3_TX_PIN NONE
+# endif
+#endif
+
+#ifdef USE_UART4
+# if !defined(UART4_RX_PIN)
+#  define UART4_RX_PIN NONE
+# endif
+# if !defined(UART4_TX_PIN)
+#  define UART4_TX_PIN NONE
+# endif
+#endif
+
+#ifdef USE_UART5
+# if !defined(UART5_RX_PIN)
+#  define UART5_RX_PIN NONE
+# endif
+# if !defined(UART5_TX_PIN)
+#  define UART5_TX_PIN NONE
+# endif
+#endif
+
+#ifdef USE_UART6
+# if !defined(UART6_RX_PIN)
+#  define UART6_RX_PIN NONE
+# endif
+# if !defined(UART6_TX_PIN)
+#  define UART6_TX_PIN NONE
+# endif
+#endif
+
+#ifdef USE_UART7
+# if !defined(UART7_RX_PIN)
+#  define UART7_RX_PIN NONE
+# endif
+# if !defined(UART7_TX_PIN)
+#  define UART7_TX_PIN NONE
+# endif
+#endif
+
+#ifdef USE_UART8
+# if !defined(UART8_RX_PIN)
+#  define UART8_RX_PIN NONE
+# endif
+# if !defined(UART8_TX_PIN)
+#  define UART8_TX_PIN NONE
+# endif
+#endif
+
+#ifdef USE_SOFTSERIAL1
+# if !defined(SOFTSERIAL1_RX_PIN)
+#  define SOFTSERIAL1_RX_PIN NONE
+# endif
+# if !defined(SOFTSERIAL1_TX_PIN)
+#  define SOFTSERIAL1_TX_PIN NONE
+# endif
+#endif
+
+#ifdef USE_SOFTSERIAL2
+# if !defined(SOFTSERIAL2_RX_PIN)
+#  define SOFTSERIAL2_RX_PIN NONE
+# endif
+# if !defined(SOFTSERIAL2_TX_PIN)
+#  define SOFTSERIAL2_TX_PIN NONE
+# endif
+#endif
+
+void resetSerialPinConfig(serialPinConfig_t *pSerialPinConfig)
+{
+    for (int port = 0 ; port < SERIAL_PORT_MAX_INDEX ; port++) {
+        pSerialPinConfig->ioTagRx[port] = IO_TAG(NONE);
+        pSerialPinConfig->ioTagTx[port] = IO_TAG(NONE);
+    }
+
+    for (int index = 0 ; index < SERIAL_PORT_COUNT ; index++) {
+        switch (serialPortIdentifiers[index]) {
+        case SERIAL_PORT_USART1:
+#ifdef USE_UART1
+            pSerialPinConfig->ioTagRx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART1)] = IO_TAG(UART1_RX_PIN);
+            pSerialPinConfig->ioTagTx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART1)] = IO_TAG(UART1_TX_PIN);
+#endif
+            break;
+        case SERIAL_PORT_USART2:
+#ifdef USE_UART2
+            pSerialPinConfig->ioTagRx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART2)] = IO_TAG(UART2_RX_PIN);
+            pSerialPinConfig->ioTagTx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART2)] = IO_TAG(UART2_TX_PIN);
+#endif
+            break;
+        case SERIAL_PORT_USART3:
+#ifdef USE_UART3
+            pSerialPinConfig->ioTagRx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART3)] = IO_TAG(UART3_RX_PIN);
+            pSerialPinConfig->ioTagTx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART3)] = IO_TAG(UART3_TX_PIN);
+#endif
+            break;
+        case SERIAL_PORT_USART4:
+#ifdef USE_UART4
+            pSerialPinConfig->ioTagRx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART4)] = IO_TAG(UART4_RX_PIN);
+            pSerialPinConfig->ioTagTx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART4)] = IO_TAG(UART4_TX_PIN);
+#endif
+            break;
+        case SERIAL_PORT_USART5:
+#ifdef USE_UART5
+            pSerialPinConfig->ioTagRx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART5)] = IO_TAG(UART5_RX_PIN);
+            pSerialPinConfig->ioTagTx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART5)] = IO_TAG(UART5_TX_PIN);
+#endif
+            break;
+        case SERIAL_PORT_USART6:
+#ifdef USE_UART6
+            pSerialPinConfig->ioTagRx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART6)] = IO_TAG(UART6_RX_PIN);
+            pSerialPinConfig->ioTagTx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART6)] = IO_TAG(UART6_TX_PIN);
+#endif
+            break;
+        case SERIAL_PORT_USART7:
+#ifdef USE_UART7
+            pSerialPinConfig->ioTagRx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART7)] = IO_TAG(UART7_RX_PIN);
+            pSerialPinConfig->ioTagTx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART7)] = IO_TAG(UART7_TX_PIN);
+#endif
+            break;
+        case SERIAL_PORT_USART8:
+#ifdef USE_UART8
+            pSerialPinConfig->ioTagRx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART8)] = IO_TAG(UART8_RX_PIN);
+            pSerialPinConfig->ioTagTx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_USART8)] = IO_TAG(UART8_TX_PIN);
+#endif
+            break;
+        case SERIAL_PORT_SOFTSERIAL1:
+#ifdef USE_SOFTSERIAL1
+            pSerialPinConfig->ioTagRx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_SOFTSERIAL1)] = IO_TAG(SOFTSERIAL1_RX_PIN);
+            pSerialPinConfig->ioTagTx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_SOFTSERIAL1)] = IO_TAG(SOFTSERIAL1_TX_PIN);
+#endif
+            break;
+        case SERIAL_PORT_SOFTSERIAL2:
+#ifdef USE_SOFTSERIAL2
+            pSerialPinConfig->ioTagRx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_SOFTSERIAL2)] = IO_TAG(SOFTSERIAL2_RX_PIN);
+            pSerialPinConfig->ioTagTx[SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(SERIAL_PORT_SOFTSERIAL2)] = IO_TAG(SOFTSERIAL2_TX_PIN);
+#endif
+            break;
+        case SERIAL_PORT_USB_VCP:
+            break;
+        case SERIAL_PORT_NONE:
+            break;
+        }
+    }
+}
+
 #ifdef SWAP_SERIAL_PORT_0_AND_1_DEFAULTS
 #define FIRST_PORT_INDEX 1
 #define SECOND_PORT_INDEX 0
@@ -476,15 +657,6 @@ void resetMixerConfig(mixerConfig_t *mixerConfig)
 #endif
     mixerConfig->yaw_motor_direction = 1;
 }
-
-#ifdef USE_SERVOS
-void resetServoMixerConfig(servoMixerConfig_t *servoMixerConfig)
-{
-    servoMixerConfig->tri_unarmed_servo = 1;
-    servoMixerConfig->servo_lowpass_freq = 400;
-    servoMixerConfig->servo_lowpass_enable = 0;
-}
-#endif
 
 #ifdef USE_MAX7456
 void resetMax7456Config(vcdProfile_t *pVcdProfile)
@@ -581,10 +753,11 @@ void createDefaultConfig(master_t *config)
     // Clear all configuration
     memset(config, 0, sizeof(master_t));
 
-    uint32_t *featuresPtr = &config->enabledFeatures;
+    uint32_t *featuresPtr = &config->featureConfig.enabledFeatures;
 
     intFeatureClearAll(featuresPtr);
     intFeatureSet(DEFAULT_RX_FEATURE | FEATURE_FAILSAFE , featuresPtr);
+
 #ifdef DEFAULT_FEATURES
     intFeatureSet(DEFAULT_FEATURES, featuresPtr);
 #endif
@@ -601,7 +774,6 @@ void createDefaultConfig(master_t *config)
 #endif
 
 #ifdef OSD
-    intFeatureSet(FEATURE_OSD, featuresPtr);
     osdResetConfig(&config->osdProfile);
 #endif
 
@@ -635,14 +807,15 @@ void createDefaultConfig(master_t *config)
     config->gyroConfig.gyro_soft_notch_hz_2 = 200;
     config->gyroConfig.gyro_soft_notch_cutoff_2 = 100;
 
-    config->debug_mode = DEBUG_MODE;
+    config->systemConfig.debug_mode = DEBUG_MODE;
     config->task_statistics = true;
 
     resetAccelerometerTrims(&config->accelerometerConfig.accZero);
 
     config->gyroConfig.gyro_align = ALIGN_DEFAULT;
     config->accelerometerConfig.acc_align = ALIGN_DEFAULT;
-    config->compassConfig.mag_align = ALIGN_DEFAULT;
+    
+    resetCompassConfig(&config->compassConfig);
 
     config->boardAlignment.rollDegrees = 0;
     config->boardAlignment.pitchDegrees = 0;
@@ -672,7 +845,7 @@ void createDefaultConfig(master_t *config)
 #endif
 
 #ifdef BEEPER
-    resetBeeperConfig(&config->beeperConfig);
+    resetBeeperConfig(&config->beeperDevConfig);
 #endif
 
 #ifdef SONAR
@@ -689,6 +862,7 @@ void createDefaultConfig(master_t *config)
 #else
     config->rxConfig.serialrx_provider = 0;
 #endif
+    config->rxConfig.halfDuplex = 0;
     config->rxConfig.rx_spi_protocol = RX_SPI_DEFAULT_PROTOCOL;
     config->rxConfig.sbus_inversion = 1;
     config->rxConfig.spektrum_sat_bind = 0;
@@ -700,9 +874,9 @@ void createDefaultConfig(master_t *config)
     config->rxConfig.rx_max_usec = 2115;         // any of first 4 channels above this value will trigger rx loss detection
 
     for (int i = 0; i < MAX_SUPPORTED_RC_CHANNEL_COUNT; i++) {
-        rxFailsafeChannelConfiguration_t *channelFailsafeConfiguration = &config->rxConfig.failsafe_channel_configurations[i];
-        channelFailsafeConfiguration->mode = (i < NON_AUX_CHANNEL_COUNT) ? RX_FAILSAFE_MODE_AUTO : RX_FAILSAFE_MODE_HOLD;
-        channelFailsafeConfiguration->step = (i == THROTTLE) ? CHANNEL_VALUE_TO_RXFAIL_STEP(config->rxConfig.rx_min_usec) : CHANNEL_VALUE_TO_RXFAIL_STEP(config->rxConfig.midrc);
+        rxFailsafeChannelConfig_t *channelFailsafeConfig = &config->rxConfig.failsafe_channel_configurations[i];
+        channelFailsafeConfig->mode = (i < NON_AUX_CHANNEL_COUNT) ? RX_FAILSAFE_MODE_AUTO : RX_FAILSAFE_MODE_HOLD;
+        channelFailsafeConfig->step = (i == THROTTLE) ? CHANNEL_VALUE_TO_RXFAIL_STEP(config->rxConfig.rx_min_usec) : CHANNEL_VALUE_TO_RXFAIL_STEP(config->rxConfig.midrc);
     }
 
     config->rxConfig.rssi_channel = 0;
@@ -712,7 +886,7 @@ void createDefaultConfig(master_t *config)
     config->rxConfig.rcInterpolationChannels = 0;
     config->rxConfig.rcInterpolationInterval = 19;
     config->rxConfig.fpvCamAngleDegrees = 0;
-    config->rxConfig.max_aux_channel = MAX_AUX_CHANNELS;
+    config->rxConfig.max_aux_channel = DEFAULT_AUX_CHANNEL_COUNT;
     config->rxConfig.airModeActivateThreshold = 1350;
 
     resetAllRxChannelRangeConfigurations(config->rxConfig.channelRanges);
@@ -732,7 +906,6 @@ void createDefaultConfig(master_t *config)
     resetMixerConfig(&config->mixerConfig);
     resetMotorConfig(&config->motorConfig);
 #ifdef USE_SERVOS
-    resetServoMixerConfig(&config->servoMixerConfig);
     resetServoConfig(&config->servoConfig);
 #endif
     resetFlight3DConfig(&config->flight3DConfig);
@@ -748,6 +921,8 @@ void createDefaultConfig(master_t *config)
     config->gpsConfig.autoConfig = GPS_AUTOCONFIG_ON;
     config->gpsConfig.autoBaud = GPS_AUTOBAUD_OFF;
 #endif
+
+    resetSerialPinConfig(&config->serialPinConfig);
 
     resetSerialConfig(&config->serialConfig);
 
@@ -891,11 +1066,10 @@ void activateConfig(void)
 
     resetAdjustmentStates();
 
-    useRcControlsConfig(modeActivationProfile()->modeActivationConditions, &currentProfile->pidProfile);
+    useRcControlsConfig(modeActivationConditions(0), &currentProfile->pidProfile);
     useAdjustmentConfig(&currentProfile->pidProfile);
 
 #ifdef GPS
-    gpsUseProfile(&masterConfig.gpsProfile);
     gpsUsePIDs(&currentProfile->pidProfile);
 #endif
 
@@ -903,29 +1077,23 @@ void activateConfig(void)
     setAccelerationTrims(&accelerometerConfigMutable()->accZero);
     setAccelerationFilter(accelerometerConfig()->acc_lpf_hz);
 
-    mixerUseConfigs(&masterConfig.airplaneConfig);
-
 #ifdef USE_SERVOS
-    servoUseConfigs(&masterConfig.servoMixerConfig, masterConfig.servoProfile.servoConf, &masterConfig.gimbalConfig, &masterConfig.channelForwardingConfig);
+    servoUseConfigs(masterConfig.servoProfile.servoConf, &masterConfig.channelForwardingConfig);
 #endif
 
-    imuConfigure(
-        &masterConfig.imuConfig,
-        &currentProfile->pidProfile,
-        throttleCorrectionConfig()->throttle_correction_angle
-    );
+    imuConfigure(throttleCorrectionConfig()->throttle_correction_angle);
 
     configureAltitudeHold(&currentProfile->pidProfile);
 }
 
 void validateAndFixConfig(void)
 {
-    if((motorConfig()->motorPwmProtocol == PWM_TYPE_BRUSHED) && (motorConfig()->mincommand < 1000)){
+    if((motorConfig()->dev.motorPwmProtocol == PWM_TYPE_BRUSHED) && (motorConfig()->mincommand < 1000)){
         motorConfigMutable()->mincommand = 1000;
     }
 
-    if ((motorConfig()->motorPwmProtocol == PWM_TYPE_STANDARD) && (motorConfig()->motorPwmRate > BRUSHLESS_MOTORS_PWM_RATE)) {
-        motorConfig()->motorPwmRate = BRUSHLESS_MOTORS_PWM_RATE;
+    if ((motorConfig()->dev.motorPwmProtocol == PWM_TYPE_STANDARD) && (motorConfig()->dev.motorPwmRate > BRUSHLESS_MOTORS_PWM_RATE)) {
+        motorConfigMutable()->dev.motorPwmRate = BRUSHLESS_MOTORS_PWM_RATE;
     }
 
     if (!(featureConfigured(FEATURE_RX_PARALLEL_PWM) || featureConfigured(FEATURE_RX_PPM) || featureConfigured(FEATURE_RX_SERIAL) || featureConfigured(FEATURE_RX_MSP) || featureConfigured(FEATURE_RX_SPI))) {
@@ -958,12 +1126,6 @@ void validateAndFixConfig(void)
             featureClear(FEATURE_CURRENT_METER);
         }
 #endif
-
-#if defined(STM32F10X) || defined(CHEBUZZ) || defined(STM32F3DISCOVERY)
-        // led strip needs the same ports
-        featureClear(FEATURE_LED_STRIP);
-#endif
-
         // software serial needs free PWM ports
         featureClear(FEATURE_SOFTSERIAL);
     }
@@ -980,42 +1142,6 @@ void validateAndFixConfig(void)
             featureClear(FEATURE_CURRENT_METER);
         }
 #endif
-    }
-#endif
-
-#if defined(NAZE) && defined(SONAR)
-    if (featureConfigured(FEATURE_RX_PARALLEL_PWM) && featureConfigured(FEATURE_SONAR) && featureConfigured(FEATURE_CURRENT_METER) && batteryConfig()->currentMeterType == CURRENT_SENSOR_ADC) {
-        featureClear(FEATURE_CURRENT_METER);
-    }
-#endif
-
-#if defined(OLIMEXINO) && defined(SONAR)
-    if (feature(FEATURE_SONAR) && feature(FEATURE_CURRENT_METER) && batteryConfig()->currentMeterType == CURRENT_SENSOR_ADC) {
-        featureClear(FEATURE_CURRENT_METER);
-    }
-#endif
-
-#if defined(CC3D) && defined(DISPLAY) && defined(USE_UART3)
-    if (doesConfigurationUsePort(SERIAL_PORT_USART3) && feature(FEATURE_DASHBOARD)) {
-        featureClear(FEATURE_DASHBOARD);
-    }
-#endif
-
-#if defined(CC3D) && defined(SONAR) && defined(USE_SOFTSERIAL1) && defined(RSSI_ADC_GPIO)
-    // shared pin
-    if ((featureConfigured(FEATURE_SONAR) + featureConfigured(FEATURE_SOFTSERIAL) + featureConfigured(FEATURE_RSSI_ADC)) > 1) {
-        featureClear(FEATURE_SONAR);
-        featureClear(FEATURE_SOFTSERIAL);
-        featureClear(FEATURE_RSSI_ADC);
-    }
-#endif
-
-#if defined(COLIBRI_RACE)
-    serialConfig()->portConfigs[0].functionMask = FUNCTION_MSP;
-    if (featureConfigured(FEATURE_RX_PARALLEL_PWM) || featureConfigured(FEATURE_RX_MSP)) {
-        featureClear(FEATURE_RX_PARALLEL_PWM);
-        featureClear(FEATURE_RX_MSP);
-        featureSet(FEATURE_RX_PPM);
     }
 #endif
 
@@ -1063,7 +1189,7 @@ void validateAndFixGyroConfig(void)
 #endif
     } else {
 #if defined(STM32F1)
-        gyroConfigMutable()->gyro_sync_denom = MAX(gyroConfig()->gyro_sync_denom, 4);
+        gyroConfigMutable()->gyro_sync_denom = MAX(gyroConfig()->gyro_sync_denom, 3);
 #endif
     }
 
@@ -1074,7 +1200,7 @@ void validateAndFixGyroConfig(void)
     // check for looptime restrictions based on motor protocol. Motor times have safety margin
     const float pidLooptime = samplingTime * gyroConfig()->gyro_sync_denom * pidConfig()->pid_process_denom;
     float motorUpdateRestriction;
-    switch(motorConfig()->motorPwmProtocol) {
+    switch(motorConfig()->dev.motorPwmProtocol) {
         case (PWM_TYPE_STANDARD):
             motorUpdateRestriction = 1.0f/BRUSHLESS_MOTORS_PWM_RATE;
             break;
@@ -1102,11 +1228,11 @@ void validateAndFixGyroConfig(void)
     }
 
     // Prevent overriding the max rate of motors
-    if (motorConfig()->useUnsyncedPwm && (motorConfig()->motorPwmProtocol <= PWM_TYPE_BRUSHED) && motorConfig()->motorPwmProtocol != PWM_TYPE_STANDARD) {
+    if (motorConfig()->dev.useUnsyncedPwm && (motorConfig()->dev.motorPwmProtocol <= PWM_TYPE_BRUSHED) && motorConfig()->dev.motorPwmProtocol != PWM_TYPE_STANDARD) {
         uint32_t maxEscRate = lrintf(1.0f / motorUpdateRestriction);
 
-        if(motorConfig()->motorPwmRate > maxEscRate)
-            motorConfigMutable()->motorPwmRate = maxEscRate;
+        if(motorConfig()->dev.motorPwmRate > maxEscRate)
+            motorConfigMutable()->dev.motorPwmRate = maxEscRate;
     }
 }
 

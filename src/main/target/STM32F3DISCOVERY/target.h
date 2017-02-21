@@ -151,6 +151,9 @@
 #define USE_UART3
 #define USE_UART4
 #define USE_UART5
+//#define USE_SOFTSERIAL1
+//#define USE_SOFTSERIAL2
+
 #define SERIAL_PORT_COUNT       6
 
 #define USE_ESCSERIAL
@@ -170,8 +173,6 @@
 #define EXTERNAL1_ADC_PIN       PC3
 
 #define USE_ESC_SENSOR
-
-#define LED_STRIP
 
 #define SPEKTRUM_BIND
 #define BIND_PIN                PA3 // USART2, PA3

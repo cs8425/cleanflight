@@ -93,7 +93,10 @@
 #define UART5_RX_PIN            PD2
 #define UART5_TX_PIN            PC12
 
-#define SERIAL_PORT_COUNT       4 //VCP, UART1, UART2, UART3
+#define USE_SOFTSERIAL1
+#define USE_SOFTSERIAL2
+
+#define SERIAL_PORT_COUNT       6 //VCP, UART1, UART2, UART3, SOFTSERIAL x 2
 
 #define USE_ESCSERIAL
 #define ESCSERIAL_TIMER_TX_HARDWARE 0 // PWM 1
@@ -116,8 +119,6 @@
 #define I2C_DEVICE              (I2CDEV_3)
 #define I2C3_SCL                PA8
 #define I2C3_SDA                PC9
-
-#define LED_STRIP
 
 // alternative defaults for Colibri/Gemini target
 #define TARGET_CONFIG
