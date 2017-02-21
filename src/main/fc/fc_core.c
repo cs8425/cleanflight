@@ -492,7 +492,7 @@ static void subTaskMainSubprocesses(timeUs_t currentTimeUs)
 #endif
 #if defined(USE_ACC_ALT_HOLD) && !(defined(BARO) || defined(SONAR))
     if(sensors(SENSOR_ACC) && FLIGHT_MODE(ALT_HOLD_MODE)) {
-        applyAltHold(rxConfig(), &masterConfig.airplaneConfig);
+        applyAltHold(rxConfig());
     }
 #else
     if(sensors(SENSOR_ACC) && FLIGHT_MODE(ALT_HOLD_MODE)) {

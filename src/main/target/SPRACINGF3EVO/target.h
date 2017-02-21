@@ -137,7 +137,16 @@
 //#define LED_STRIP
 
 //#define TRANSPONDER
+#undef LED_STRIP
+#undef TRANSPONDER
 #undef TELEMETRY_IBUS
+//#undef USE_SERIALRX_SPEKTRUM   // SRXL, DSM2 and DSMX protocol
+#undef USE_SERIALRX_SBUS       // Frsky and Futaba receivers
+#undef USE_SERIALRX_IBUS       // FlySky and Turnigy receivers
+#undef USE_SERIALRX_CRSF       // Team Black Sheep Crossfire protocol
+#undef USE_SERIALRX_SUMD       // Graupner Hott protocol
+#undef USE_SERIALRX_SUMH       // Graupner legacy protocol
+#undef USE_SERIALRX_XBUS       // JR
 #undef USE_RX_V202
 #undef USE_RX_SYMA
 #undef USE_RX_INAV
