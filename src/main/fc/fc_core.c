@@ -54,6 +54,9 @@
 #include "fc/runtime_config.h"
 
 #include "msp/msp_serial.h"
+#ifdef USE_EXTCMD
+#include "msp/msp_extcmd.h"
+#endif
 
 #include "io/beeper.h"
 #include "io/gps.h"
@@ -508,6 +511,10 @@ static void subTaskMainSubprocesses(timeUs_t currentTimeUs)
             }
         }
     }
+#endif
+
+#if defined(USE_EXTCMD) && defined(USE_NAV)
+	applyPosHold();
 #endif
 
     // If we're armed, at minimum throttle, and we do arming via the

@@ -87,6 +87,9 @@
 #include "msp/msp.h"
 #include "msp/msp_protocol.h"
 #include "msp/msp_serial.h"
+#ifdef USE_EXTCMD
+#include "msp/msp_extcmd.h"
+#endif
 
 #include "rx/msp.h"
 #include "rx/rx.h"
@@ -1932,6 +1935,13 @@ static mspResult_e mspFcProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
     return MSP_RESULT_ACK;
 }
 
+#ifdef USE_EXTCMD
+static mspResult_e mspFcProcessExtCommand(sbuf_t *dst, sbuf_t *src, mspPostProcessFnPtr *mspPostProcessFn)
+{
+    uint16_t cmd = sbufReadU16(src);
+    return mspProcessExtCommand(cmd, dst, src, mspPostProcessFn);
+}
+#endif
 /*
  * Returns MSP_RESULT_ACK, MSP_RESULT_ERROR or MSP_RESULT_NO_REPLY
  */
@@ -1961,6 +1971,10 @@ mspResult_e mspFcProcessCommand(mspPacket_t *cmd, mspPacket_t *reply, mspPostPro
         mspFcDataFlashReadCommand(dst, src);
         ret = MSP_RESULT_ACK;
 #endif
+#ifdef USE_EXTCMD
+    } else if (cmdMSP == MSP_EXT_CMD) {
+        ret = mspFcProcessExtCommand(dst, src, mspPostProcessFn);
+#endif
     } else {
         ret = mspFcProcessInCommand(cmdMSP, src);
     }
@@ -1974,4 +1988,7 @@ mspResult_e mspFcProcessCommand(mspPacket_t *cmd, mspPacket_t *reply, mspPostPro
 void mspFcInit(void)
 {
     initActiveBoxIds();
+#ifdef USE_EXTCMD
+    mspExtInit();
+#endif
 }

@@ -676,6 +676,7 @@ COMMON_SRC = \
             io/vtx_string.c \
             io/vtx_smartaudio.c \
             io/vtx_tramp.c \
+            msp/msp_extcmd.c \
             $(CMSIS_SRC) \
             $(DEVICE_STDPERIPH_SRC)
 
@@ -748,6 +749,7 @@ SPEED_OPTIMISED_SRC := $(SPEED_OPTIMISED_SRC) \
             io/dashboard.c \
             io/displayport_max7456.c \
             io/osd.c \
+            msp/msp_extcmd.c \
 
 SIZE_OPTIMISED_SRC := $(SIZE_OPTIMISED_SRC) \
             drivers/serial_escserial.c \
