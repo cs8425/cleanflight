@@ -55,6 +55,7 @@ typedef enum {
     BOXFPVANGLEMIX,
     BOXBLACKBOXERASE,
     BOXALTHOLD,
+    BOXPOSHOLD,
     CHECKBOX_ITEM_COUNT
 } boxId_e;
 

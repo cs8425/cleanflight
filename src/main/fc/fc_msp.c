@@ -157,6 +157,7 @@ static const box_t boxes[CHECKBOX_ITEM_COUNT + 1] = {
     { BOXFPVANGLEMIX, "FPV ANGLE MIX", 30},
     { BOXBLACKBOXERASE, "BLACKBOX ERASE (>30s)", 31 },
     { BOXALTHOLD, "ACC HOLD", 32},
+    { BOXGPSHOLD, "POS HOLD", 33},
     { CHECKBOX_ITEM_COUNT, NULL, 0xFF }
 };
 
@@ -412,6 +413,10 @@ void initActiveBoxIds(void)
         activeBoxIds[activeBoxIdCount++] = BOXSERVO2;
         activeBoxIds[activeBoxIdCount++] = BOXSERVO3;
     }
+#endif
+
+#if defined(USE_EXTCMD) && defined(USE_NAV)
+    activeBoxIds[activeBoxIdCount++] = BOXGPSHOLD;
 #endif
 }
 

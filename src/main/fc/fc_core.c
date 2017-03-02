@@ -466,6 +466,10 @@ void processRx(timeUs_t currentTimeUs)
 #ifdef VTX
     vtxUpdateActivatedChannel();
 #endif
+
+#if defined(USE_EXTCMD) && defined(USE_NAV)
+    updatePosHoldState();
+#endif
 }
 
 static void subTaskPidController(void)
