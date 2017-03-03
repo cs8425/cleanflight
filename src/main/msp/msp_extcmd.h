@@ -26,6 +26,7 @@
 
 #define MSPEX_SET_TPOS               01    //in message      set target location
 #define MSPEX_SET_CPOS               02    //in message      set current location
+#define MSPEX_SET_PID                03    //in message      set PID
 extern int32_t NAV_curr[3];
 extern int32_t NAV_hold[3];
 

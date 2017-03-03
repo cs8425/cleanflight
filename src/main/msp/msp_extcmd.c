@@ -59,10 +59,11 @@ int16_t NAV_holdhead;
 #define NAV_PID_TOTAL   5
 pidi_t NAV_pid[NAV_PID_TOTAL];
 
+static uint8_t initialStickPos = 0; // flag for Throttle Stick move to center
+
 static int32_t doPIDI(pidi_t *pid, int32_t target, int32_t current, timeUs_t dt)
 {
 	int32_t result;
-	pid->prevError = pid->error;
 	pid->target = target;
 
 	// P
@@ -70,19 +71,22 @@ static int32_t doPIDI(pidi_t *pid, int32_t target, int32_t current, timeUs_t dt)
 	result = pid->kp * pid->error;
 
 	// I
-	pid->integ += pid->ki * pid->error * dt;
+	pid->integ += pid->ki * ((pid->error + pid->prevError) / 2) * dt;
 	if(pid->integMax) pid->integ = constrain(pid->integ, -pid->integMax, pid->integMax);
 	result += pid->integ;
 
 	// D
-	result -= (pid->kd * (pid->error + pid->prevError)) / (2 * dt);
+	pid->deriv = (pid->error - pid->prevError) / dt;
+	result += pid->kd * pid->deriv;
+
+	pid->prevError = pid->error;
 
 	return result / pid->scale;
 }
 
 
 //int16_t rcCommand[4];           // interval [1000;2000] for THROTTLE and [-500;+500] for ROLL/PITCH/YAW
-static timeUs_t previousTimeUs = 0; //micros();
+static timeUs_t previousTimeUs = 0;
 static int32_t last_X = 0;
 static int32_t last_Y = 0;
 static int32_t last_Z = 0;
@@ -91,16 +95,14 @@ void applyPosHold(void)
 	/*if (!IS_RC_MODE_ACTIVE(BOXGPSHOLD)) {
 		return;
 	}*/
-	if (!FLIGHT_MODE(BOXGPSHOLD)) {
+	if (!FLIGHT_MODE(GPS_HOLD_MODE)) {
 		return;
 	}
 
-
 	timeUs_t currentTimeUs = micros();
 	timeUs_t dt = currentTimeUs - previousTimeUs;
+	if(dt < 20*1000) return;
 	previousTimeUs = currentTimeUs;
-
-
 
 	float sin_yaw_y = sin_approx(DECIDEGREES_TO_DEGREES(attitude.values.yaw) * 0.0174532925f);
 	float cos_yaw_x = cos_approx(DECIDEGREES_TO_DEGREES(attitude.values.yaw) * 0.0174532925f);
@@ -109,13 +111,18 @@ void applyPosHold(void)
 
 
 	// set velocity proportional to stick movement +100 throttle gives ~ +50 mm/s
-	int32_t altV = doPIDI(&NAV_pid[NAV_PID_VALT], (rcData[THROTTLE] - rxConfig()->midrc) / 2, last_Z - NAV_curr[NAV_Z], dt);
-	rcCommand[THROTTLE] = constrain(motorConfig()->minthrottle + altV, motorConfig()->minthrottle, motorConfig()->maxthrottle);
+	int32_t altV = doPIDI(&NAV_pid[NAV_PID_VALT], (rcData[THROTTLE] - rxConfig()->midrc) / 2, NAV_curr[NAV_Z] - last_Z, 1);
+	if (ABS(rcData[THROTTLE] - rxConfig()->midrc) > rcControlsConfig()->alt_hold_deadband) {
+		if (initialStickPos) {
+			rcCommand[THROTTLE] = constrain(motorConfig()->minthrottle + altV, motorConfig()->minthrottle, motorConfig()->maxthrottle);
+		}
+	}
 
 #ifdef DEBUG_NAV
-    debug[1] = NAV_curr[NAV_Z];
-    debug[2] = altV;
-    debug[3] = dt;
+	debug[0] = NAV_curr[NAV_Z] - last_Z;
+	debug[1] = NAV_curr[NAV_Z];
+	debug[2] = altV;
+	debug[3] = dt;
 #endif
 
 	last_X = NAV_curr[NAV_X];
@@ -126,19 +133,20 @@ void applyPosHold(void)
 
 void updatePosHoldState(void)
 {
-    // Pos hold activate
-    if (!IS_RC_MODE_ACTIVE(BOXGPSHOLD)) {
-        DISABLE_FLIGHT_MODE(GPS_HOLD_MODE);
-        return;
-    }
+	// Pos hold activate
+	if (!IS_RC_MODE_ACTIVE(BOXGPSHOLD)) {
+		DISABLE_FLIGHT_MODE(GPS_HOLD_MODE);
+		return;
+	}
 
-    if (!FLIGHT_MODE(BOXGPSHOLD)) {
-        ENABLE_FLIGHT_MODE(GPS_HOLD_MODE);
+	if (!FLIGHT_MODE(BOXGPSHOLD)) {
+		ENABLE_FLIGHT_MODE(GPS_HOLD_MODE);
 		previousTimeUs = micros();
 		last_X = NAV_curr[NAV_X];
 		last_Y = NAV_curr[NAV_Y];
 		last_Z = NAV_curr[NAV_Z];
-    }
+		initialStickPos = 0;
+	}
 }
 #endif
 
@@ -159,14 +167,14 @@ void mspExtInit(void)
 		NAV_pid[i].prevError = 0;
 		NAV_pid[i].integ = 0;
 		NAV_pid[i].dt = 0;
-		NAV_pid[i].scale = 0;
+		NAV_pid[i].scale = 1;
 	}
 
 	NAV_pid[NAV_PID_VALT].kp = 60;
-	NAV_pid[NAV_PID_VALT].ki = 35;
-	NAV_pid[NAV_PID_VALT].kd = 5;
-	NAV_pid[NAV_PID_VALT].integMax = 600;
-	NAV_pid[NAV_PID_VALT].scale = 128;
+	NAV_pid[NAV_PID_VALT].ki = 70;
+	NAV_pid[NAV_PID_VALT].kd = 35;
+	NAV_pid[NAV_PID_VALT].integMax = 700 * 64;
+	NAV_pid[NAV_PID_VALT].scale = 64;
 
 #endif
 }
@@ -178,6 +186,7 @@ mspResult_e mspProcessExtCommand(uint16_t cmd, sbuf_t *dst, sbuf_t *src, mspPost
 	int ret = MSP_RESULT_ACK;
 	uint16_t packSn = sbufReadU16(src);
 	uint8_t flag;
+	uint8_t id;
 
 	switch (cmd) {
 #ifdef USE_NAV
@@ -198,6 +207,27 @@ mspResult_e mspProcessExtCommand(uint16_t cmd, sbuf_t *dst, sbuf_t *src, mspPost
 		if(flag & 0x08) NAV_currhead = (int16_t)sbufReadU16(src);
 		sbufWriteU8(dst, 'A');
 		sbufWriteU8(dst, 'C');
+		break;
+
+	case MSPEX_SET_PID:
+		id = sbufReadU8(src);
+		if(id < NAV_PID_TOTAL){
+			flag = sbufReadU8(src);
+			if(flag & 0x01) NAV_pid[id].kp = (int32_t)sbufReadU32(src);
+			if(flag & 0x02) NAV_pid[id].ki = (int32_t)sbufReadU32(src);
+			if(flag & 0x04) NAV_pid[id].kd = (int32_t)sbufReadU32(src);
+			if(flag & 0x08) NAV_pid[id].integMax = (int32_t)sbufReadU32(src);
+			if(flag & 0x10) NAV_pid[id].scale = (int32_t)sbufReadU32(src);
+			if(flag & 0x20){
+				NAV_pid[id].error = 0;
+				NAV_pid[id].deriv = 0;
+				NAV_pid[id].prevError = 0;
+				NAV_pid[id].integ = 0;
+			}
+			sbufWriteU8(dst, 'A');
+		}else{
+			sbufWriteU8(dst, 'E');
+		}
 		break;
 #endif
 
