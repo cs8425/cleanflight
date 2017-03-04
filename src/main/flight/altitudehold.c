@@ -375,7 +375,6 @@ int32_t calculateAltHoldThrottleAdjustmentACC(int32_t vel_tmp, float accZ_tmp, f
     result -= constrain(D * (accZ_tmp + accZ_old) / 256, -(256 * 300), (256 * 300));
 
 
-
     // Accelerate PID-Controller
     P = pidProfile->P8[PIDALT];
     I = pidProfile->I8[PIDALT];
@@ -421,7 +420,7 @@ void calculateEstimatedAltitudeACC(timeUs_t currentTime)
     vel *= 0.92f;   // FIXME simple fix velocity integrate error
 
 #ifdef DEBUG_ALT_HOLD
-    debug[1] = accZ_tmp;                        // acceleration
+    debug[1] = vel_acc;                         // acceleration
     debug[2] = vel * 10.0f;                     // velocity
     debug[3] = accAlt * 10.0f;                  // height
 #endif
@@ -436,9 +435,9 @@ void calculateEstimatedAltitudeACC(timeUs_t currentTime)
     // set vario
     vario = applyDeadband(vel_tmp, 5);
 
-    altHoldThrottleAdjustment = calculateAltHoldThrottleAdjustmentACC(vel_tmp, accZ_tmp, accZ_old);
+    altHoldThrottleAdjustment = calculateAltHoldThrottleAdjustmentACC(vel_tmp, vel_acc, accZ_old);
 
-    accZ_old = accZ_tmp;
+    accZ_old = vel_acc;
 }
 
 void resetACCVel(void)

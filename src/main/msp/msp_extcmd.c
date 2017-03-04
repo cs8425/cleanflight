@@ -101,28 +101,38 @@ void applyPosHold(void)
 
 	timeUs_t currentTimeUs = micros();
 	timeUs_t dt = currentTimeUs - previousTimeUs;
-	if(dt < 20*1000) return;
+	if(dt < 20*1000) return;	// 50Hz
 	previousTimeUs = currentTimeUs;
 
-	float sin_yaw_y = sin_approx(DECIDEGREES_TO_DEGREES(attitude.values.yaw) * 0.0174532925f);
-	float cos_yaw_x = cos_approx(DECIDEGREES_TO_DEGREES(attitude.values.yaw) * 0.0174532925f);
-//rcCommand[ROLL] = (NAV_curr[NAV_X] * cos_yaw_x - NAV_curr[NAV_Y] * sin_yaw_y) / 10;
-//rcCommand[PITCH] = (NAV_curr[NAV_X] * sin_yaw_y + NAV_curr[NAV_Y] * cos_yaw_x) / 10;
+	int32_t dx = NAV_curr[NAV_X] - last_X;
+	int32_t dy = NAV_curr[NAV_Y] - last_Y;
+	int32_t dz = NAV_curr[NAV_Z] - last_Z;
 
+//	const float radDiff = degreesToRadians(DECIDEGREES_TO_DEGREES(attitude.values.yaw));
+	const float radDiff = degreesToRadians(DECIDEGREES_TO_DEGREES(NAV_currhead));
+	const float cosDiff = cos_approx(radDiff);
+	const float sinDiff = sin_approx(radDiff);
+
+	float hold_y = dy;
+	float hold_x = -dx;
+
+	// rcData? rcCommand?
+	rcCommand[ROLL] = rcCommand[ROLL] + hold_y * cosDiff + hold_x * sinDiff;
+	rcCommand[PITCH] = rcData[PITCH] + hold_x * cosDiff - hold_y * sinDiff;
 
 	// set velocity proportional to stick movement +100 throttle gives ~ +50 mm/s
-	int32_t altV = doPIDI(&NAV_pid[NAV_PID_VALT], (rcData[THROTTLE] - rxConfig()->midrc) / 2, NAV_curr[NAV_Z] - last_Z, 1);
-	if (ABS(rcData[THROTTLE] - rxConfig()->midrc) > rcControlsConfig()->alt_hold_deadband) {
+	int32_t altV = doPIDI(&NAV_pid[NAV_PID_VALT], (rcData[THROTTLE] - rxConfig()->midrc) / 2, dz, 1);
+	/*if (ABS(rcData[THROTTLE] - rxConfig()->midrc) > rcControlsConfig()->alt_hold_deadband) {
 		if (initialStickPos) {
 			rcCommand[THROTTLE] = constrain(motorConfig()->minthrottle + altV, motorConfig()->minthrottle, motorConfig()->maxthrottle);
 		}
-	}
+	}*/
 
 #ifdef DEBUG_NAV
-	debug[0] = NAV_curr[NAV_Z] - last_Z;
-	debug[1] = NAV_curr[NAV_Z];
-	debug[2] = altV;
-	debug[3] = dt;
+	debug[0] = altV;
+	debug[1] = dz;
+	debug[2] = hold_y;
+	debug[3] = hold_x;
 #endif
 
 	last_X = NAV_curr[NAV_X];
@@ -168,6 +178,10 @@ void mspExtInit(void)
 		NAV_pid[i].integ = 0;
 		NAV_pid[i].dt = 0;
 		NAV_pid[i].scale = 1;
+
+		NAV_pid[i].kp = 1;
+		NAV_pid[i].ki = 0;
+		NAV_pid[i].kd = 0;
 	}
 
 	NAV_pid[NAV_PID_VALT].kp = 60;
