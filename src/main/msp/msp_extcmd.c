@@ -27,6 +27,7 @@
 #ifdef USE_EXTCMD
 
 #ifdef USE_NAV
+#include <math.h>
 #include "build/debug.h"
 
 #include "common/axis.h"
@@ -51,8 +52,8 @@ int16_t NAV_currhead;
 int32_t NAV_hold[3];
 int16_t NAV_holdhead;
 
-#define NAV_PID_ROLL    0
-#define NAV_PID_PITCH   1
+#define NAV_PID_X       0
+#define NAV_PID_Y       1
 #define NAV_PID_YAW     2
 #define NAV_PID_ALT     3
 #define NAV_PID_VALT    4
@@ -101,24 +102,26 @@ void applyPosHold(void)
 
 	timeUs_t currentTimeUs = micros();
 	timeUs_t dt = currentTimeUs - previousTimeUs;
-	if(dt < 20*1000) return;	// 50Hz
+//	if(dt < 20*1000) return;	// 50Hz
 	previousTimeUs = currentTimeUs;
 
 	int32_t dx = NAV_curr[NAV_X] - last_X;
 	int32_t dy = NAV_curr[NAV_Y] - last_Y;
 	int32_t dz = NAV_curr[NAV_Z] - last_Z;
 
-//	const float radDiff = degreesToRadians(DECIDEGREES_TO_DEGREES(attitude.values.yaw));
-	const float radDiff = degreesToRadians(DECIDEGREES_TO_DEGREES(NAV_currhead));
-	const float cosDiff = cos_approx(radDiff);
-	const float sinDiff = sin_approx(radDiff);
+//	const float radDiff = DECIDEGREES_TO_RADIANS(attitude.values.yaw);
+	const float radDiff = -DECIDEGREES_TO_RADIANS(NAV_currhead - NAV_holdhead);
+	const float cosDiff = cosf(radDiff);
+	const float sinDiff = sinf(radDiff);
 
-	float hold_y = dy;
-	float hold_x = -dx;
+//	float hold_y = doPIDI(&NAV_pid[NAV_PID_Y], 0, dy, 1);
+//	float hold_x = doPIDI(&NAV_pid[NAV_PID_X], 0, -dx, 1);
+	float hold_y = doPIDI(&NAV_pid[NAV_PID_Y], NAV_curr[NAV_Y], NAV_hold[NAV_Y], 1);
+	float hold_x = -doPIDI(&NAV_pid[NAV_PID_X], NAV_curr[NAV_X], NAV_hold[NAV_X], 1);
 
 	// rcData? rcCommand?
-	rcCommand[ROLL] = rcCommand[ROLL] + hold_y * cosDiff + hold_x * sinDiff;
-	rcCommand[PITCH] = rcData[PITCH] + hold_x * cosDiff - hold_y * sinDiff;
+	rcCommand[ROLL] = (rcData[ROLL] - rxConfig()->midrc) + constrain(hold_y * cosDiff + hold_x * sinDiff, -100, 100);
+	rcCommand[PITCH] = (rcData[PITCH] - rxConfig()->midrc) + constrain(hold_x * cosDiff - hold_y * sinDiff, -100, 100);
 
 	// set velocity proportional to stick movement +100 throttle gives ~ +50 mm/s
 	int32_t altV = doPIDI(&NAV_pid[NAV_PID_VALT], (rcData[THROTTLE] - rxConfig()->midrc) / 2, dz, 1);
@@ -129,10 +132,10 @@ void applyPosHold(void)
 	}*/
 
 #ifdef DEBUG_NAV
-	debug[0] = altV;
-	debug[1] = dz;
-	debug[2] = hold_y;
-	debug[3] = hold_x;
+	debug[0] = rcCommand[PITCH];
+	debug[1] = NAV_currhead - NAV_holdhead;
+	debug[2] = hold_x;
+	debug[3] = hold_y;
 #endif
 
 	last_X = NAV_curr[NAV_X];
@@ -190,6 +193,17 @@ void mspExtInit(void)
 	NAV_pid[NAV_PID_VALT].integMax = 700 * 64;
 	NAV_pid[NAV_PID_VALT].scale = 64;
 
+	NAV_pid[NAV_PID_X].kp = 1;
+	NAV_pid[NAV_PID_X].ki = 0;
+	NAV_pid[NAV_PID_X].kd = 0;
+	NAV_pid[NAV_PID_X].integMax = 0;
+	NAV_pid[NAV_PID_X].scale = 64;
+
+	NAV_pid[NAV_PID_Y].kp = 1;
+	NAV_pid[NAV_PID_Y].ki = 0;
+	NAV_pid[NAV_PID_Y].kd = 0;
+	NAV_pid[NAV_PID_Y].integMax = 0;
+	NAV_pid[NAV_PID_Y].scale = 64;
 #endif
 }
 
@@ -219,7 +233,6 @@ mspResult_e mspProcessExtCommand(uint16_t cmd, sbuf_t *dst, sbuf_t *src, mspPost
 		if(flag & 0x02) NAV_curr[NAV_Y] = (int32_t)sbufReadU32(src);
 		if(flag & 0x04) NAV_curr[NAV_Z] = (int32_t)sbufReadU32(src);
 		if(flag & 0x08) NAV_currhead = (int16_t)sbufReadU16(src);
-		sbufWriteU8(dst, 'A');
 		sbufWriteU8(dst, 'C');
 		break;
 
@@ -238,8 +251,10 @@ mspResult_e mspProcessExtCommand(uint16_t cmd, sbuf_t *dst, sbuf_t *src, mspPost
 				NAV_pid[id].prevError = 0;
 				NAV_pid[id].integ = 0;
 			}
+			sbufWriteU16(dst, MSPEX_SET_PID);
 			sbufWriteU8(dst, 'A');
 		}else{
+			sbufWriteU16(dst, MSPEX_SET_PID);
 			sbufWriteU8(dst, 'E');
 		}
 		break;
