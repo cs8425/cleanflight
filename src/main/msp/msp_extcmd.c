@@ -47,6 +47,8 @@
 #define NAV_Y 1
 #define NAV_Z 2
 
+static timeUs_t lastUpdateTimeUs = 0;
+static uint8_t hasUpdate = 0;
 int32_t NAV_curr[3];
 int16_t NAV_currhead;
 int32_t NAV_hold[3];
@@ -105,9 +107,27 @@ void applyPosHold(void)
 //	if(dt < 20*1000) return;	// 50Hz
 	previousTimeUs = currentTimeUs;
 
+	static float hold_y = 0.0f;
+	static float hold_x = 0.0f;
+
 	int32_t dx = NAV_curr[NAV_X] - last_X;
 	int32_t dy = NAV_curr[NAV_Y] - last_Y;
 	int32_t dz = NAV_curr[NAV_Z] - last_Z;
+
+	if(hasUpdate == 0) {
+		if(currentTimeUs - lastUpdateTimeUs > 100*1000) { // > 100ms timeout, reset
+			hold_y = 0.0f;
+			hold_x = 0.0f;
+		} else {
+			const float radDiff = -DECIDEGREES_TO_RADIANS(NAV_currhead - NAV_holdhead);
+			const float cosDiff = cosf(radDiff);
+			const float sinDiff = sinf(radDiff);
+			rcCommand[ROLL] = rcCommand[ROLL] + constrain(hold_y * cosDiff + hold_x * sinDiff, -150, 150);
+			rcCommand[PITCH] = rcCommand[PITCH] + constrain(hold_x * cosDiff - hold_y * sinDiff, -150, 150);
+		}
+		return;
+	}
+	hasUpdate = 0;
 
 //	const float radDiff = DECIDEGREES_TO_RADIANS(attitude.values.yaw);
 	const float radDiff = -DECIDEGREES_TO_RADIANS(NAV_currhead - NAV_holdhead);
@@ -116,12 +136,12 @@ void applyPosHold(void)
 
 //	float hold_y = doPIDI(&NAV_pid[NAV_PID_Y], 0, dy, 1);
 //	float hold_x = doPIDI(&NAV_pid[NAV_PID_X], 0, -dx, 1);
-	float hold_y = doPIDI(&NAV_pid[NAV_PID_Y], NAV_curr[NAV_Y], NAV_hold[NAV_Y], 1);
-	float hold_x = -doPIDI(&NAV_pid[NAV_PID_X], NAV_curr[NAV_X], NAV_hold[NAV_X], 1);
+	hold_y = doPIDI(&NAV_pid[NAV_PID_Y], NAV_curr[NAV_Y], NAV_hold[NAV_Y], 1);
+	hold_x = -doPIDI(&NAV_pid[NAV_PID_X], NAV_curr[NAV_X], NAV_hold[NAV_X], 1);
 
 	// rcData? rcCommand?
-	rcCommand[ROLL] = (rcData[ROLL] - rxConfig()->midrc) + constrain(hold_y * cosDiff + hold_x * sinDiff, -100, 100);
-	rcCommand[PITCH] = (rcData[PITCH] - rxConfig()->midrc) + constrain(hold_x * cosDiff - hold_y * sinDiff, -100, 100);
+	rcCommand[ROLL] = rcCommand[ROLL] + constrain(hold_y * cosDiff + hold_x * sinDiff, -150, 150);
+	rcCommand[PITCH] = rcCommand[PITCH] + constrain(hold_x * cosDiff - hold_y * sinDiff, -150, 150);
 
 	// set velocity proportional to stick movement +100 throttle gives ~ +50 mm/s
 	int32_t altV = doPIDI(&NAV_pid[NAV_PID_VALT], (rcData[THROTTLE] - rxConfig()->midrc) / 2, dz, 1);
@@ -132,9 +152,10 @@ void applyPosHold(void)
 	}*/
 
 #ifdef DEBUG_NAV
-	debug[0] = rcCommand[PITCH];
-	debug[1] = NAV_currhead - NAV_holdhead;
-	debug[2] = hold_x;
+	debug[0] = NAV_currhead - NAV_holdhead;
+	debug[1] = rcCommand[PITCH];
+	debug[2] = rcCommand[ROLL];
+//	debug[2] = hold_x;
 	debug[3] = hold_y;
 #endif
 
@@ -193,17 +214,17 @@ void mspExtInit(void)
 	NAV_pid[NAV_PID_VALT].integMax = 700 * 64;
 	NAV_pid[NAV_PID_VALT].scale = 64;
 
-	NAV_pid[NAV_PID_X].kp = 1;
-	NAV_pid[NAV_PID_X].ki = 0;
+	NAV_pid[NAV_PID_X].kp = 5;
+	NAV_pid[NAV_PID_X].ki = 1;
 	NAV_pid[NAV_PID_X].kd = 0;
-	NAV_pid[NAV_PID_X].integMax = 0;
-	NAV_pid[NAV_PID_X].scale = 64;
+	NAV_pid[NAV_PID_X].integMax = 50 * 1024;
+	NAV_pid[NAV_PID_X].scale = 1024;
 
-	NAV_pid[NAV_PID_Y].kp = 1;
-	NAV_pid[NAV_PID_Y].ki = 0;
+	NAV_pid[NAV_PID_Y].kp = 5;
+	NAV_pid[NAV_PID_Y].ki = 1;
 	NAV_pid[NAV_PID_Y].kd = 0;
-	NAV_pid[NAV_PID_Y].integMax = 0;
-	NAV_pid[NAV_PID_Y].scale = 64;
+	NAV_pid[NAV_PID_Y].integMax = 50 * 1024;
+	NAV_pid[NAV_PID_Y].scale = 1024;
 #endif
 }
 
@@ -233,6 +254,8 @@ mspResult_e mspProcessExtCommand(uint16_t cmd, sbuf_t *dst, sbuf_t *src, mspPost
 		if(flag & 0x02) NAV_curr[NAV_Y] = (int32_t)sbufReadU32(src);
 		if(flag & 0x04) NAV_curr[NAV_Z] = (int32_t)sbufReadU32(src);
 		if(flag & 0x08) NAV_currhead = (int16_t)sbufReadU16(src);
+		lastUpdateTimeUs = micros();
+		hasUpdate = 1;
 		sbufWriteU8(dst, 'C');
 		break;
 
