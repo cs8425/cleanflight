@@ -579,7 +579,22 @@ bool blackboxDeviceOpen(void)
                  *                              = floor((looptime_ns * 3) / 500.0)
                  *                              = (looptime_ns * 3) / 500
                  */
-                blackboxMaxHeaderBytesPerIteration = constrain((targetPidLooptime * 3) / 500, 1, BLACKBOX_TARGET_HEADER_BUDGET_PER_ITERATION);
+                 blackboxMaxHeaderBytesPerIteration = BLACKBOX_TARGET_HEADER_BUDGET_PER_ITERATION;
+
+                 switch(baudRates[baudRateIndex]) {
+                 case 250000:
+                 case 400000:
+                 case 460800:
+                 case 500000:
+                 case 921600:
+                 case 1000000:
+                 case 1500000:
+                 case 2000000:
+                 case 2470000:
+                     break;
+                 default:
+                    blackboxMaxHeaderBytesPerIteration = constrain((targetPidLooptime * 3) / 500, 1, BLACKBOX_TARGET_HEADER_BUDGET_PER_ITERATION);
+                 };
 
                 return blackboxPort != NULL;
             }

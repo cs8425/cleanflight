@@ -164,7 +164,7 @@
 #undef CMS
 #undef VTX
 #undef VTX_CONTROL
-#undef BLACKBOX
+//#undef BLACKBOX
 //#define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
 
 #define USE_EXTCMD
