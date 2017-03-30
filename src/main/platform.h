@@ -68,6 +68,10 @@
 
 #define STM32F1
 
+#elif defined(SITL)
+
+//#include "target/SITL/SITL.h"
+
 #else // STM32F10X
 #error "Invalid chipset specified. Update platform.h"
 #endif
