@@ -38,36 +38,13 @@
 #define USABLE_TIMER_CHANNEL_COUNT 0
 
 #define USE_UART1
-//#define UART1_RX_PIN PA10
-//#define UART1_TX_PIN PA9
-
 #define USE_UART2
-#define UART2_RX_PIN PD6
-#define UART2_TX_PIN PD5
-
 #define USE_UART3
-#define UART3_RX_PIN PD9
-#define UART3_TX_PIN PD8
-
 #define USE_UART4
-#define UART4_RX_PIN PC11
-#define UART4_TX_PIN PC10
-
 #define USE_UART5
-#define UART5_RX_PIN PD2
-#define UART5_TX_PIN PC12
-
 #define USE_UART6
-#define UART6_RX_PIN PC7
-#define UART6_TX_PIN PC6
-
 #define USE_UART7
-#define UART7_RX_PIN PE7
-#define UART7_TX_PIN PE8
-
 #define USE_UART8
-#define UART8_RX_PIN PE0
-#define UART8_TX_PIN PE1
 
 //#define USE_SOFTSERIAL1
 //#define USE_SOFTSERIAL2
@@ -102,7 +79,8 @@
 #undef VTX_SMARTAUDIO
 #undef VTX_TRAMP
 
-
+#undef USE_I2C
+#undef USE_SPI
 
 # define DEFIO_PORT_USED_COUNT 0
 # define DEFIO_PORT_USED_LIST /* empty */
@@ -128,14 +106,13 @@
 
 #include <stdint.h>
 #include <stddef.h>
+//#include <stdbool.h>
+//#include "drivers/bus_i2c.h"
+//typedef uint8_t ioTag_t;
 
 uint32_t SystemCoreClock;
 
-/**
- * IO definitions
- *
- * define access restrictions to peripheral registers
- */
+#define UNUSED(x) (void)(x)
 
 #ifdef __cplusplus
   #define     __I     volatile                /*!< defines 'read only' permissions      */
@@ -215,6 +192,21 @@ typedef enum
   FLASH_COMPLETE,
   FLASH_TIMEOUT
 }FLASH_Status;
+
+/*
+void systemInit(void);
+void systemReset(void);
+
+void delay(uint32_t cnt);
+
+uint32_t micros(void);
+
+uint32_t millis(void);
+
+void serialPrint(serialPort_t *instance, const char *str);
+void serialWrite(serialPort_t *instance, uint8_t ch);*/
+
+//bool i2cWrite(I2CDevice dev, uint8_t addr, uint8_t reg, uint8_t val);
 
 /*
 typedef enum

@@ -971,14 +971,17 @@ SITLEXCLUDES = drivers/adc.c \
             drivers/bus_spi.c \
             drivers/bus_i2c.c \
             drivers/dma.c \
+            drivers/display_ug2864hsweg01.c \
             drivers/pwm_output.c \
             drivers/timer.c \
             drivers/light_led.c \
             drivers/system.c \
             drivers/rcc.c \
             drivers/serial_uart.c \
-            io/serial.c
-
+            drivers/serial.c \
+            io/serial.c \
+            io/dashboard.c \
+            io/displayport_oled.c
 
 # check if target.mk supplied
 ifeq ($(TARGET),$(filter $(TARGET),$(F4_TARGETS)))
@@ -1142,6 +1145,44 @@ LDFLAGS     = -lm \
               -Wl,--cref \
               -Wl,--no-wchar-size-warning \
               -T$(LD_SCRIPT)
+
+#SITL compile
+ifeq ($(TARGET),$(filter $(TARGET),$(SITL_TARGETS)))
+CFLAGS      += $(ARCH_FLAGS) \
+              $(addprefix -D,$(OPTIONS)) \
+              $(addprefix -I,$(INCLUDE_DIRS)) \
+              $(DEBUG_FLAGS) \
+              -std=gnu99 \
+              -Wall -Wextra -Wunsafe-loop-optimizations -Wdouble-promotion \
+              -ffunction-sections \
+              -fdata-sections \
+              -pedantic \
+              $(DEVICE_FLAGS) \
+              -DUSE_STDPERIPH_DRIVER \
+              -D$(TARGET) \
+              $(TARGET_FLAGS) \
+              -D'__FORKNAME__="$(FORKNAME)"' \
+              -D'__TARGET__="$(TARGET)"' \
+              -D'__REVISION__="$(REVISION)"' \
+              -save-temps=obj \
+              -MMD -MP
+
+ASFLAGS     = $(ARCH_FLAGS) \
+              -x assembler-with-cpp \
+              $(addprefix -I,$(INCLUDE_DIRS)) \
+              -MMD -MP
+
+LDFLAGS     = -lm \
+              -lc \
+              $(ARCH_FLAGS) \
+              $(LTO_FLAGS) \
+              $(DEBUG_FLAGS) \
+              -static \
+              -Wl,-gc-sections,-Map,$(TARGET_MAP) \
+              -Wl,-L$(LINKER_DIR) \
+              -Wl,--cref \
+              -T'src/main/target/SITL/parameter_group.ld'
+endif
 
 ###############################################################################
 # No user-serviceable parts below
