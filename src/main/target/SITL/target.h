@@ -51,6 +51,9 @@
 
 #define SERIAL_PORT_COUNT 8
 
+#undef STACK_CHECK // I think SITL don't need this
+#undef USE_DASHBOARD
+#undef TELEMETRY_LTM
 #undef USE_ADC
 #undef USE_VCP
 #undef USE_PPM
@@ -67,6 +70,7 @@
 #undef TELEMETRY_FRSKY
 #undef TELEMETRY_HOTT
 #undef TELEMETRY_SMARTPORT
+#undef TELEMETRY_MAVLINK
 #undef USE_RESOURCE_MGMT
 #undef CMS
 #undef TELEMETRY_CRSF
@@ -179,6 +183,20 @@ typedef struct
     void* test;
 } USART_TypeDef;
 
+#define USART1 ((USART_TypeDef *)0x0001)
+#define USART2 ((USART_TypeDef *)0x0002)
+#define USART3 ((USART_TypeDef *)0x0003)
+#define USART4 ((USART_TypeDef *)0x0004)
+#define USART5 ((USART_TypeDef *)0x0005)
+#define USART6 ((USART_TypeDef *)0x0006)
+#define USART7 ((USART_TypeDef *)0x0007)
+#define USART8 ((USART_TypeDef *)0x0008)
+
+#define UART4 ((USART_TypeDef *)0x0004)
+#define UART5 ((USART_TypeDef *)0x0005)
+#define UART7 ((USART_TypeDef *)0x0007)
+#define UART8 ((USART_TypeDef *)0x0008)
+
 typedef struct
 {
     void* test;
@@ -193,178 +211,5 @@ typedef enum
   FLASH_TIMEOUT
 }FLASH_Status;
 
-/*
-void systemInit(void);
-void systemReset(void);
-
-void delay(uint32_t cnt);
-
-uint32_t micros(void);
-
-uint32_t millis(void);
-
-void serialPrint(serialPort_t *instance, const char *str);
-void serialWrite(serialPort_t *instance, uint8_t ch);*/
-
-//bool i2cWrite(I2CDevice dev, uint8_t addr, uint8_t reg, uint8_t val);
-
-/*
-typedef enum
-{
-    Mode_TEST = 0x0,
-    Mode_Out_PP = 0x10
-} GPIO_Mode;
-
-typedef enum {RESET = 0, SET = !RESET} FlagStatus, ITStatus;
-typedef enum {DISABLE = 0, ENABLE = !DISABLE} FunctionalState;
-typedef enum {TEST_IRQ = 0 } IRQn_Type;
-typedef enum {
-    EXTI_Trigger_Rising = 0x08,
-    EXTI_Trigger_Falling = 0x0C,
-    EXTI_Trigger_Rising_Falling = 0x10
-} EXTITrigger_TypeDef;
-
-typedef struct
-{
-  __IO uint32_t CRL;
-  __IO uint32_t CRH;
-  __IO uint32_t IDR;
-  __IO uint32_t ODR;
-  __IO uint32_t BSRR;
-  __IO uint32_t BRR;
-  __IO uint32_t LCKR;
-} GPIO_TypeDef;
-
-typedef struct
-{
-  __IO uint16_t CR1;
-  __IO uint16_t CR2;
-  __IO uint16_t SMCR;
-  __IO uint16_t DIER;
-  __IO uint16_t SR;
-  __IO uint16_t EGR;
-  __IO uint16_t CCMR1;
-  __IO uint16_t CCMR2;
-  __IO uint16_t CCER;
-  __IO uint16_t CNT;
-  __IO uint16_t PSC;
-  __IO uint16_t ARR;
-  __IO uint16_t RCR;
-  __IO uint16_t CCR1;
-  __IO uint16_t CCR2;
-  __IO uint16_t CCR3;
-  __IO uint16_t CCR4;
-  __IO uint16_t BDTR;
-  __IO uint16_t DCR;
-  __IO uint16_t DMAR;
-} TIM_TypeDef;
-
-typedef struct
-{
-  uint16_t TIM_OCMode;
-} TIM_OCInitTypeDef;
-#define TIM_OCPolarity_Low     0
-#define TIM_OCPolarity_High    1
-#define TIM_OCMode_Timing      2
-#define TIM_OutputState_Enable 4
-#define TIM_OCMode_Inactive    8
-
-typedef struct
-{
-  uint16_t TIM_Prescaler;
-  uint16_t TIM_CounterMode;
-  uint16_t TIM_Period;
-  uint16_t TIM_ClockDivision;
-  uint8_t TIM_RepetitionCounter;
-} TIM_TimeBaseInitTypeDef;
-
-#define TIM_DMA_CC1                        ((uint16_t)0x0200)
-#define TIM_DMA_CC2                        ((uint16_t)0x0400)
-#define TIM_DMA_CC3                        ((uint16_t)0x0800)
-#define TIM_DMA_CC4                        ((uint16_t)0x1000)
-#define TIM_Channel_1                      ((uint16_t)0x0000)
-#define TIM_Channel_2                      ((uint16_t)0x0004)
-#define TIM_Channel_3                      ((uint16_t)0x0008)
-#define TIM_Channel_4                      ((uint16_t)0x000C)
-
-typedef struct {
-  __IO uint32_t ISR;
-  __IO uint32_t IFCR;
-} DMA_TypeDef;
-
-typedef struct {
-  __IO uint32_t CCR;
-  __IO uint32_t CNDTR;
-  __IO uint32_t CPAR;
-  __IO uint32_t CMAR;
-} DMA_Channel_TypeDef;
-
-typedef struct
-{
-  uint32_t DMA_PeripheralBaseAddr;
-  uint32_t DMA_MemoryBaseAddr;
-  uint32_t DMA_DIR;
-  uint32_t DMA_BufferSize;
-  uint32_t DMA_PeripheralInc;
-  uint32_t DMA_MemoryInc;
-  uint32_t DMA_PeripheralDataSize;
-  uint32_t DMA_MemoryDataSize;
-  uint32_t DMA_Mode;
-  uint32_t DMA_Priority;
-  uint32_t DMA_M2M;
-}DMA_InitTypeDef;
-
-#define DMA_IT_TC 1
-
-uint8_t DMA_GetFlagStatus(void *);
-void DMA_Cmd(DMA_Channel_TypeDef*, FunctionalState );
-void DMA_ClearFlag(uint32_t);
-
-
-
-typedef struct
-{
-  __IO uint16_t CR1;
-  __IO uint16_t CR2;
-  __IO uint16_t SR;
-  __IO uint16_t DR;
-  __IO uint16_t CRCPR;
-  __IO uint16_t RXCRCR;
-  __IO uint16_t TXCRCR;
-  __IO uint16_t I2SCFGR;
-  __IO uint16_t I2SPR;
-} SPI_TypeDef;
-
-
-
-typedef struct
-{
-  __IO uint16_t SR;
-  __IO uint16_t DR;
-  __IO uint16_t BRR;
-  __IO uint16_t CR1;
-  __IO uint16_t CR2;
-  __IO uint16_t CR3;
-  __IO uint16_t GTPR;
-} USART_TypeDef;
-#define USART_Parity_No                      ((uint16_t)0x0000)
-#define USART_Parity_Even                    ((uint16_t)0x0400)
-#define USART_Parity_Odd                     ((uint16_t)0x0600) 
-
-
-
-typedef struct
-{
-  __IO uint16_t CR1;
-  __IO uint16_t CR2;
-  __IO uint16_t OAR1;
-  __IO uint16_t OAR2;
-  __IO uint16_t DR;
-  __IO uint16_t SR1;
-  __IO uint16_t SR2;
-  __IO uint16_t CCR;
-  __IO uint16_t TRISE;
-} I2C_TypeDef;
-*/
 
 

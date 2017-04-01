@@ -967,21 +967,18 @@ F7EXCLUDES = drivers/bus_spi.c \
             drivers/timer.c \
             drivers/serial_uart.c
 
-SITLEXCLUDES = drivers/adc.c \
+SITLEXCLUDES = \
+            drivers/adc.c \
             drivers/bus_spi.c \
             drivers/bus_i2c.c \
             drivers/dma.c \
-            drivers/display_ug2864hsweg01.c \
             drivers/pwm_output.c \
             drivers/timer.c \
             drivers/light_led.c \
             drivers/system.c \
             drivers/rcc.c \
             drivers/serial_uart.c \
-            drivers/serial.c \
-            io/serial.c \
-            io/dashboard.c \
-            io/displayport_oled.c
+
 
 # check if target.mk supplied
 ifeq ($(TARGET),$(filter $(TARGET),$(F4_TARGETS)))
@@ -992,6 +989,8 @@ else ifeq ($(TARGET),$(filter $(TARGET),$(F3_TARGETS)))
 SRC := $(STARTUP_SRC) $(STM32F30x_COMMON_SRC) $(TARGET_SRC) $(VARIANT_SRC)
 else ifeq ($(TARGET),$(filter $(TARGET),$(F1_TARGETS)))
 SRC := $(STARTUP_SRC) $(STM32F10x_COMMON_SRC) $(TARGET_SRC) $(VARIANT_SRC)
+else ifeq ($(TARGET),$(filter $(TARGET),$(SITL_TARGETS)))
+SRC := $(TARGET_SRC) $(VARIANT_SRC)
 endif
 
 ifneq ($(filter $(TARGET),$(F4_TARGETS) $(F7_TARGETS)),)
@@ -1174,6 +1173,7 @@ ASFLAGS     = $(ARCH_FLAGS) \
 
 LDFLAGS     = -lm \
               -lc \
+              -lrt \
               $(ARCH_FLAGS) \
               $(LTO_FLAGS) \
               $(DEBUG_FLAGS) \

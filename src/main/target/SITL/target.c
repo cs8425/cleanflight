@@ -17,71 +17,151 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#define printf printf
+#define sprintf sprintf
 
-//#include <platform.h>
+#include <errno.h>
+//#include <poll.h>
+//#include <sys/time.h>
+//#include <unistd.h>
+#include <time.h>
+
 #include "drivers/io.h"
 #include "drivers/dma.h"
 #include "drivers/serial.h"
+#include "drivers/pwm_output.h"
+#include "drivers/light_led.h"
 
 #include "drivers/timer.h"
 #include "drivers/timer_def.h"
 const timerHardware_t timerHardware[USABLE_TIMER_CHANNEL_COUNT] = {};
 
+static struct timespec start_time;
+
 void systemInit(void) {
+	clock_gettime(CLOCK_MONOTONIC, &start_time);
+	printf("[system]Init...\n");
+	puts("[system]Init...2\n");
 }
 
 void systemReset(void){
+	printf("[system]Reset!\n");
 }
 void systemResetToBootloader(void) {
+	printf("[system]ResetToBootloader!\n");
 }
 
-void ledInit(void) {
+// drivers/light_led.c
+void ledInit(const statusLedConfig_t *statusLedConfig) {
+	UNUSED(statusLedConfig);
+	printf("[led]Init...\n");
 }
 void timerInit(void) {
+	printf("[timer]Init...\n");
 }
-void serialInit(void) {
+void timerStart(void) {
 }
-void motorDevInit(void) {
+void motorDevInit(const motorDevConfig_t *motorConfig, uint16_t idlePulse, uint8_t motorCount) {
 }
-void servoDevInit(void) {
-}
-void dashboardInit(void) {
+void servoDevInit(const servoDevConfig_t *servoConfig) {
 }
 void failureMode(void) {
-	printf("[failureMode]!!!");
+	printf("[failureMode]!!!\n");
 	while(1);
 }
 
-void delayMicroseconds(uint32_t cnt) {
-	UNUSED(cnt);
+
+// Thanks ArduPilot
+uint64_t micros64() {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return 1.0e6*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) -
+			(start_time.tv_sec +
+			(start_time.tv_nsec*1.0e-9)));
 }
-void delay(uint32_t cnt) {
-	UNUSED(cnt);
+uint64_t millis64() {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return 1.0e3*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) -
+			(start_time.tv_sec +
+			(start_time.tv_nsec*1.0e-9)));
 }
 
-uint32_t micros() {
+uint32_t micros(void) {
+	return micros64() & 0xFFFFFFFF;
+}
+
+uint32_t millis(void) {
+	return millis64() & 0xFFFFFFFF;
+}
+
+void microsleep(uint32_t usec) {
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = usec*1000UL;
+    while (nanosleep(&ts, &ts) == -1 && errno == EINTR) ;
+}
+void delayMicroseconds(uint32_t us) {
+	microsleep(us);
+}
+void delay(uint32_t ms) {
+	uint64_t start = millis64();
+
+	while ((millis64() - start) < ms) {
+		microsleep(1000);
+	}
+}
+
+
+bool pwmMotorsEnabled = true;
+static pwmOutputPort_t motors[MAX_SUPPORTED_MOTORS];
+pwmOutputPort_t *pwmGetMotors(void) {
+	return motors;
+}
+bool pwmAreMotorsEnabled(void) {
+	return pwmMotorsEnabled;
+}
+void pwmWriteMotor(uint8_t index, uint16_t value) {
+
+}
+void pwmShutdownPulsesForAllMotors(uint8_t motorCount) {
+}
+void pwmCompleteMotorUpdate(uint8_t motorCount) {
+}
+void pwmWriteServo(uint8_t index, uint16_t value) {
+}
+
+uint16_t adcGetChannel(uint8_t channel) {
+	UNUSED(channel);
 	return 0;
 }
 
-uint32_t millis() {
-	return 0;
+char _estack;
+char _Min_Stack_Size;
+
+// fake EEPROM
+uint8_t __config_start;
+uint8_t __config_end;
+void FLASH_Unlock(void) {
+
+}
+void FLASH_Lock(void) {
+
 }
 
-/*bool i2cWrite(I2CDevice dev, uint8_t addr, uint8_t reg, uint8_t val) {
-	UNUSED(dev);
-	UNUSED(addr);
-	UNUSED(reg);
-	UNUSED(val);
-	return true;
-}*/
-
-void serialPrint(serialPort_t *instance, const char *str) {
-	UNUSED(instance);
-	puts(str);
+FLASH_Status FLASH_EraseSector(uint32_t FLASH_Sector, uint8_t VoltageRange) {
+	UNUSED(FLASH_Sector);
+	UNUSED(VoltageRange);
+	return FLASH_COMPLETE;
 }
-void serialWrite(serialPort_t *instance, uint8_t ch) {
-	UNUSED(instance);
-	putchar(ch);
+FLASH_Status FLASH_ErasePage(uint32_t Page_Address) {
+	UNUSED(Page_Address);
+	return FLASH_COMPLETE;
+}
+FLASH_Status FLASH_ProgramWord(uint32_t Address, uint32_t Data) {
+	UNUSED(Address);
+	UNUSED(Data);
+	return FLASH_COMPLETE;
 }
 
 
