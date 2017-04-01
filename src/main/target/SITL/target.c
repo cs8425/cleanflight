@@ -29,6 +29,7 @@
 #include "drivers/io.h"
 #include "drivers/dma.h"
 #include "drivers/serial.h"
+#include "drivers/system.h"
 #include "drivers/pwm_output.h"
 #include "drivers/light_led.h"
 
@@ -65,8 +66,8 @@ void motorDevInit(const motorDevConfig_t *motorConfig, uint16_t idlePulse, uint8
 }
 void servoDevInit(const servoDevConfig_t *servoConfig) {
 }
-void failureMode(void) {
-	printf("[failureMode]!!!\n");
+void failureMode(failureMode_e mode) {
+	printf("[failureMode]!!! %d\n", mode);
 	while(1);
 }
 
@@ -140,10 +141,11 @@ char _estack;
 char _Min_Stack_Size;
 
 // fake EEPROM
-uint8_t __config_start;
-uint8_t __config_end;
-void FLASH_Unlock(void) {
+extern uint8_t __config_start;
+static uint8_t *eeprom;
 
+void FLASH_Unlock(void) {
+	eeprom = &__config_start;
 }
 void FLASH_Lock(void) {
 
@@ -155,12 +157,21 @@ FLASH_Status FLASH_EraseSector(uint32_t FLASH_Sector, uint8_t VoltageRange) {
 	return FLASH_COMPLETE;
 }
 FLASH_Status FLASH_ErasePage(uint32_t Page_Address) {
-	UNUSED(Page_Address);
+//	UNUSED(Page_Address);
+	printf("[FLASH_ErasePage]%x\n", Page_Address);
 	return FLASH_COMPLETE;
 }
-FLASH_Status FLASH_ProgramWord(uint32_t Address, uint32_t Data) {
-	UNUSED(Address);
-	UNUSED(Data);
+FLASH_Status FLASH_ProgramWord(uint32_t addr, uint32_t Data) {
+//	UNUSED(addr);
+//	UNUSED(Data);
+//	printf("[FLASH_ProgramWord]%p, %p\n", &__config_start, eeprom);
+	addr = addr - ((uint32_t) &__config_start);
+	printf("[FLASH_ProgramWord]%p:%x = %x\n", &(eeprom[addr]), addr, Data);
+	eeprom[addr + 0] = Data & 0xFF;
+	eeprom[addr + 1] = (Data >> 8) & 0xFF;
+	eeprom[addr + 2] = (Data >> 16) & 0xFF;
+	eeprom[addr + 3] = (Data >> 24) & 0xFF;
+//	printf("[FLASH_ProgramWord]%p == %p\n", &__config_start + addr, &(eeprom[addr]));
 	return FLASH_COMPLETE;
 }
 

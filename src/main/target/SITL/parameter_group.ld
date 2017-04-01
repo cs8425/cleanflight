@@ -1,4 +1,5 @@
 
+
 SECTIONS {
   /* BLOCK: on Windows (PE) output section must be page-aligned. Use 4-byte alignment otherwise */
   /* SUBALIGN: force 4-byte alignment of input sections for pg_registry.
@@ -20,3 +21,20 @@ SECTIONS {
   }
 }
 INSERT AFTER .text;
+
+
+__FLASH_CONFIG_Size = 0x1000; /* 4kB */
+SECTIONS {
+/*  .FLASH_CONFIG BLOCK( DEFINED(__section_alignment__) ? __section_alignment__ : 4 ) :   SUBALIGN(4)*/
+  .FLASH_CONFIG :
+  {
+    PROVIDE_HIDDEN (__config_start = . );
+    . = . + 4096;
+    PROVIDE_HIDDEN (__config_end = . );
+  }
+}
+INSERT AFTER .bss;
+
+
+
+

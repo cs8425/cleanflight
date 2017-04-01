@@ -32,6 +32,8 @@
 #include "io/serial.h"
 #include "serial_tcp.h"
 
+static uartPort_t tcpSerialPorts[SERIAL_PORT_COUNT];
+const struct serialPortVTable uartVTable[]; // Forward
 
 static void tcpReconfigure(uartPort_t *uartPort)
 {
@@ -41,38 +43,46 @@ static void tcpReconfigure(uartPort_t *uartPort)
 serialPort_t *uartOpen(USART_TypeDef *USARTx, serialReceiveCallbackPtr rxCallback, uint32_t baudRate, portMode_t mode, portOptions_t options)
 {
     uartPort_t *s = NULL;
-/*
+
     if (false) {
 #ifdef USE_UART1
     } else if (USARTx == USART1) {
-        s = serialUART1(baudRate, mode, options);
+        s = &tcpSerialPorts[0];
 
 #endif
 #ifdef USE_UART2
     } else if (USARTx == USART2) {
-        s = serialUART2(baudRate, mode, options);
+        s = &tcpSerialPorts[1];
 #endif
 #ifdef USE_UART3
     } else if (USARTx == USART3) {
-        s = serialUART3(baudRate, mode, options);
+        s = &tcpSerialPorts[2];
 #endif
 #ifdef USE_UART4
     } else if (USARTx == UART4) {
-        s = serialUART4(baudRate, mode, options);
+        s = &tcpSerialPorts[3];
 #endif
 #ifdef USE_UART5
     } else if (USARTx == UART5) {
-        s = serialUART5(baudRate, mode, options);
+        s = &tcpSerialPorts[4];
 #endif
 #ifdef USE_UART6
     } else if (USARTx == USART6) {
-        s = serialUART6(baudRate, mode, options);
+        s = &tcpSerialPorts[5];
 #endif
-
+#ifdef USE_UART7
+    } else if (USARTx == USART7) {
+        s = &tcpSerialPorts[6];
+#endif
+#ifdef USE_UART8
+    } else if (USARTx == USART8) {
+        s = &tcpSerialPorts[7];
+#endif
     } else {
         return (serialPort_t *)s;
-    }*/
+    }
 
+    s->port.vTable = uartVTable;
     // common serial initialisation code should move to serialPort::init()
     s->port.rxBufferHead = s->port.rxBufferTail = 0;
     s->port.txBufferHead = s->port.txBufferTail = 0;
