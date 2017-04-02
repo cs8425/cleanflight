@@ -70,6 +70,7 @@ static void onAccept(dyad_Event *e) {
 	fprintf(stderr, "[NEW]UART%u: %d,%d\n", s->id + 1, s->connected, s->clientCount);
 	s->conn = e->remote;
 	dyad_setNoDelay(e->remote, 1);
+	dyad_setTimeout(e->remote, 120);
 	dyad_addListener(e->remote, DYAD_EVENT_DATA, onData, e->udata);
 	dyad_addListener(e->remote, DYAD_EVENT_CLOSE, onClose, e->udata);
 }
@@ -97,13 +98,13 @@ static uartPort_t* tcpReconfigure(uartPort_t *s, int id)
 	s->connected = false;
 	s->clientCount = 0;
 	s->id = id;
-	s->lastSent = micros();
+//	s->lastSent = millis();
 	s->conn = NULL;
 	s->serv = dyad_newStream();
 	dyad_setNoDelay(s->serv, 1);
 	dyad_addListener(s->serv, DYAD_EVENT_ACCEPT, onAccept, s);
 
-	if(dyad_listen(s->serv, BASE_PORT + id + 1) == 0) {
+	if(dyad_listenEx(s->serv, NULL, BASE_PORT + id + 1, 10) == 0) {
 		fprintf(stderr, "bind port %u for UART%u\n", (unsigned)BASE_PORT + id + 1, (unsigned)id+1);
 	} else {
 		fprintf(stderr, "bind port %u for UART%u failed!!\n", (unsigned)BASE_PORT + id + 1, (unsigned)id+1);
@@ -222,8 +223,8 @@ void tcpWrite(serialPort_t *instance, uint8_t ch)
     }
 	pthread_mutex_unlock(&s->txLock);
 //	printf("%c\n", ch);
-	if(((micros() - s->lastSent) > 20000) || (bytesUsed > 0 && bytesUsed > (TX_BUFFER_SIZE / 2))) {
-		s->lastSent = micros();
+	if(((millis() - s->lastSent) > 10) || (bytesUsed > 0 && bytesUsed > (TX_BUFFER_SIZE / 2))) {
+		s->lastSent = millis();
 		tcpDataOut(s);
 	}*/
 }
@@ -237,13 +238,13 @@ void tcpDataOut(uartPort_t *instance)
 
     if (s->port.txBufferHead >= s->port.txBufferTail) {
         bytesUsed = s->port.txBufferHead - s->port.txBufferTail;
-		dyad_write(s->conn, (const *)&(s->port.txBuffer[s->port.txBufferTail]), bytesUsed);
+		dyad_write(s->conn, (const void *)(&(s->port.txBuffer[s->port.txBufferTail])), bytesUsed);
 		s->port.txBufferTail = s->port.txBufferHead;
     } else {
         bytesUsed = s->port.txBufferSize + s->port.txBufferHead - s->port.txBufferTail;
-		dyad_write(s->conn, (const *)&(s->port.txBuffer[s->port.txBufferTail]), s->port.txBufferSize - s->port.txBufferTail);
+		dyad_write(s->conn, (const void *)(s->port.txBuffer + s->port.txBufferTail), s->port.txBufferSize - s->port.txBufferTail);
 		s->port.txBufferTail = 0;
-		//dyad_write(s->serv, &(s->port.txBuffer[0]), s->port.txBufferHead);
+		//dyad_write(s->serv, (const void *)&(s->port.txBuffer[0]), s->port.txBufferHead);
     }
 //	printf("buf: %u\n", bytesUsed);
 	pthread_mutex_unlock(&s->txLock);

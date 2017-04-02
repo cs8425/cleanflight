@@ -1079,7 +1079,14 @@ OPTIMISE_DEFAULT    := -Os
 LTO_FLAGS           := $(OPTIMISATION_BASE) $(OPTIMISE_DEFAULT)
 
 else ifeq ($(TARGET),$(filter $(TARGET),$(F3_TARGETS)))
-OPTIMISE_DEFAULT    := -O2
+OPTIMISE_DEFAULT    := -Ofast
+OPTIMISE_SPEED      := -Ofast
+OPTIMISE_SIZE       := -Os
+
+LTO_FLAGS           := $(OPTIMISATION_BASE) $(OPTIMISE_SPEED)
+
+else ifeq ($(TARGET),$(filter $(TARGET),$(SITL_TARGETS)))
+OPTIMISE_DEFAULT    := -Os
 OPTIMISE_SPEED      := -Ofast
 OPTIMISE_SIZE       := -Os
 
@@ -1179,7 +1186,6 @@ LDFLAGS     = \
               $(ARCH_FLAGS) \
               $(LTO_FLAGS) \
               $(DEBUG_FLAGS) \
-              -static \
               -Wl,-gc-sections,-Map,$(TARGET_MAP) \
               -Wl,-L$(LINKER_DIR) \
               -Wl,--cref \

@@ -43,13 +43,16 @@ void FLASH_Unlock(void);
 
 static struct timespec start_time;
 static pthread_t worker;
+static bool workerRunning = true;
 
 static void* tcpThread(void* data) {
 	UNUSED(data);
 
 	dyad_init();
+	dyad_setTickInterval(0.2f);
+	dyad_setUpdateTimeout(0.5f);
 
-	while (!tcpIsStart() || dyad_getStreamCount() > 0) {
+	while (workerRunning) {
 		dyad_update();
 	}
 
@@ -62,23 +65,26 @@ void systemInit(void) {
 	clock_gettime(CLOCK_MONOTONIC, &start_time);
 	printf("[system]Init...\n");
 
+	SystemCoreClock = 500 * 1e6;
 	FLASH_Unlock();
 
-//	int ret = pthread_create(&worker, NULL, (void * (*)(void *))tcpThread, NULL);
 	int ret = pthread_create(&worker, NULL, tcpThread, NULL);
-	if(ret!=0) {
+	if(ret != 0) {
 		printf("Create pthread error!\n");
 		exit(1);
 	}
-//	pthread_join(worker,NULL);
 }
 
 void systemReset(void){
 	printf("[system]Reset!\n");
+	workerRunning = false;
+	pthread_join(worker,NULL);
 	exit(0);
 }
 void systemResetToBootloader(void) {
 	printf("[system]ResetToBootloader!\n");
+	workerRunning = false;
+	pthread_join(worker,NULL);
 	exit(0);
 }
 
@@ -186,8 +192,7 @@ static FILE *eepromFd = NULL;
 const char *EEPROM_FILE = "eeprom.bin";
 
 void FLASH_Unlock(void) {
-//	uint8_t * const eeprom = &__config_start;
-	uint8_t * eeprom = &__config_start;
+	uint8_t * const eeprom = &__config_start;
 
 	if(eepromFd != NULL) {
 		printf("[FLASH_Unlock] eepromFd != NULL\n");
@@ -223,9 +228,6 @@ void FLASH_Lock(void) {
 		const uint8_t *eeprom = &__config_start;
 		fseek(eepromFd, 0, SEEK_SET);
 		fwrite(eeprom, sizeof(uint8_t), (size_t)&__FLASH_CONFIG_Size, eepromFd);
-		/*for(unsigned int i=0; i<((uintptr_t)&__FLASH_CONFIG_Size); i++){
-			fputc(eeprom[i], eepromFd);
-		}*/
 		fflush(eepromFd);
 		fclose(eepromFd);
 		eepromFd = NULL;
