@@ -143,7 +143,6 @@ char _Min_Stack_Size;
 // fake EEPROM
 extern uint8_t __config_start;
 extern uint32_t __FLASH_CONFIG_Size;
-//static uint8_t *eeprom;
 static FILE *eepromFd = NULL;
 const char *EEPROM_FILE = "eeprom.bin";
 
@@ -161,16 +160,16 @@ void FLASH_Unlock(void) {
 		lSize = ftell(eepromFd);
 		rewind(eepromFd);
 
-		printf("[FLASH_Unlock]size = %d\n", lSize);
-		for(int i=0; i<(int)&__FLASH_CONFIG_Size; i++){
+		printf("[FLASH_Unlock]size = %ld\n", lSize);
+		for(unsigned int i=0; i<((uintptr_t)&__FLASH_CONFIG_Size); i++){
 			c = fgetc(eepromFd);
 			if(c == EOF) break;
 			eeprom[i] = c;
 		}
-		//fread(eeprom, (size_t)1, (size_t)lSize, eepromFd);
 	}else{
 		eepromFd = fopen(EEPROM_FILE, "w+");
-		ftruncate(fileno(eepromFd), &__FLASH_CONFIG_Size);
+		fwrite(eeprom, sizeof(uint8_t), (size_t)&__FLASH_CONFIG_Size, eepromFd);
+		//ftruncate(fileno(eepromFd), &__FLASH_CONFIG_Size); // this only on linux
 	}
 }
 void FLASH_Lock(void) {
@@ -195,10 +194,9 @@ FLASH_Status FLASH_ErasePage(uint32_t Page_Address) {
 	return FLASH_COMPLETE;
 }
 FLASH_Status FLASH_ProgramWord(uint32_t addr, uint32_t Data) {
-//	const uint32_t *fakeEEPROM = &__config_start;
-//	printf("[FLASH_ProgramWord]%p,%x:%x = %x\n", addr, (addr - (uint32_t)fakeEEPROM), addr, Data);
-	*((uint32_t*)addr) = Data;
-//	printf("[FLASH_ProgramWord]%p = %x\n", addr, *((uint32_t*)addr));
+	*((uint32_t*)(uintptr_t)addr) = Data;
+//	printf("[FLASH_ProgramWord]0x%x = %x\n", addr, *((uint32_t*)(uintptr_t)addr));
+
 	return FLASH_COMPLETE;
 }
 
