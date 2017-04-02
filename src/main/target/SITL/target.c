@@ -142,13 +142,46 @@ char _Min_Stack_Size;
 
 // fake EEPROM
 extern uint8_t __config_start;
-static uint8_t *eeprom;
+extern uint32_t __FLASH_CONFIG_Size;
+//static uint8_t *eeprom;
+static FILE *eepromFd = NULL;
+const char *EEPROM_FILE = "eeprom.bin";
 
 void FLASH_Unlock(void) {
-	eeprom = &__config_start;
+	uint8_t * const eeprom = &__config_start;
+
+	// open or create
+	eepromFd = fopen(EEPROM_FILE,"r+");
+	if(eepromFd != NULL) {
+		long lSize;
+		int c;
+
+		// obtain file size:
+		fseek(eepromFd , 0 , SEEK_END);
+		lSize = ftell(eepromFd);
+		rewind(eepromFd);
+
+		printf("[FLASH_Unlock]size = %d\n", lSize);
+		for(int i=0; i<(int)&__FLASH_CONFIG_Size; i++){
+			c = fgetc(eepromFd);
+			if(c == EOF) break;
+			eeprom[i] = c;
+		}
+		//fread(eeprom, (size_t)1, (size_t)lSize, eepromFd);
+	}else{
+		eepromFd = fopen(EEPROM_FILE, "w+");
+		ftruncate(fileno(eepromFd), &__FLASH_CONFIG_Size);
+	}
 }
 void FLASH_Lock(void) {
-
+	// flush & close
+	if(eepromFd != NULL) {
+		const uint8_t *eeprom = &__config_start;
+		fseek(eepromFd, 0, SEEK_SET);
+		fwrite(eeprom, sizeof(uint8_t), (size_t)&__FLASH_CONFIG_Size, eepromFd);
+		fclose(eepromFd);
+		eepromFd = NULL;
+	}
 }
 
 FLASH_Status FLASH_EraseSector(uint32_t FLASH_Sector, uint8_t VoltageRange) {
@@ -162,16 +195,10 @@ FLASH_Status FLASH_ErasePage(uint32_t Page_Address) {
 	return FLASH_COMPLETE;
 }
 FLASH_Status FLASH_ProgramWord(uint32_t addr, uint32_t Data) {
-//	UNUSED(addr);
-//	UNUSED(Data);
-//	printf("[FLASH_ProgramWord]%p, %p\n", &__config_start, eeprom);
-	addr = addr - ((uint32_t) &__config_start);
-	printf("[FLASH_ProgramWord]%p:%x = %x\n", &(eeprom[addr]), addr, Data);
-	eeprom[addr + 0] = Data & 0xFF;
-	eeprom[addr + 1] = (Data >> 8) & 0xFF;
-	eeprom[addr + 2] = (Data >> 16) & 0xFF;
-	eeprom[addr + 3] = (Data >> 24) & 0xFF;
-//	printf("[FLASH_ProgramWord]%p == %p\n", &__config_start + addr, &(eeprom[addr]));
+//	const uint32_t *fakeEEPROM = &__config_start;
+//	printf("[FLASH_ProgramWord]%p,%x:%x = %x\n", addr, (addr - (uint32_t)fakeEEPROM), addr, Data);
+	*((uint32_t*)addr) = Data;
+//	printf("[FLASH_ProgramWord]%p = %x\n", addr, *((uint32_t*)addr));
 	return FLASH_COMPLETE;
 }
 
