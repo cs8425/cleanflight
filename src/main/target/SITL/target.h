@@ -51,6 +51,9 @@
 
 #define SERIAL_PORT_COUNT 8
 
+#define DEFAULT_RX_FEATURE      FEATURE_RX_MSP
+#define DEFAULT_FEATURES        (FEATURE_GPS | FEATURE_TELEMETRY)
+
 #undef STACK_CHECK // I think SITL don't need this
 #undef USE_DASHBOARD
 #undef TELEMETRY_LTM
@@ -117,14 +120,6 @@
 uint32_t SystemCoreClock;
 
 #define UNUSED(x) (void)(x)
-
-#ifdef __cplusplus
-  #define     __I     volatile                /*!< defines 'read only' permissions      */
-#else
-  #define     __I     volatile const          /*!< defines 'read only' permissions      */
-#endif
-#define     __O     volatile                  /*!< defines 'write only' permissions     */
-#define     __IO    volatile                  /*!< defines 'read / write' permissions   */
 
 typedef enum
 {

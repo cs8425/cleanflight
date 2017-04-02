@@ -17,18 +17,18 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #define printf printf
 #define sprintf sprintf
 
 #include <errno.h>
-//#include <poll.h>
-//#include <sys/time.h>
-//#include <unistd.h>
 #include <time.h>
+#include <pthread.h>
 
 #include "drivers/io.h"
 #include "drivers/dma.h"
 #include "drivers/serial.h"
+#include "drivers/serial_tcp.h"
 #include "drivers/system.h"
 #include "drivers/pwm_output.h"
 #include "drivers/light_led.h"
@@ -37,19 +37,49 @@
 #include "drivers/timer_def.h"
 const timerHardware_t timerHardware[USABLE_TIMER_CHANNEL_COUNT] = {};
 
+#include "target/SITL/dyad/src/dyad.h"
+
+void FLASH_Unlock(void);
+
 static struct timespec start_time;
+static pthread_t worker;
+
+static void* tcpThread(void* data) {
+	UNUSED(data);
+
+	dyad_init();
+
+	while (!tcpIsStart() || dyad_getStreamCount() > 0) {
+		dyad_update();
+	}
+
+	dyad_shutdown();
+	printf("tcpThread end!!\n");
+	return NULL;
+}
 
 void systemInit(void) {
 	clock_gettime(CLOCK_MONOTONIC, &start_time);
 	printf("[system]Init...\n");
-	puts("[system]Init...2\n");
+
+	FLASH_Unlock();
+
+//	int ret = pthread_create(&worker, NULL, (void * (*)(void *))tcpThread, NULL);
+	int ret = pthread_create(&worker, NULL, tcpThread, NULL);
+	if(ret!=0) {
+		printf("Create pthread error!\n");
+		exit(1);
+	}
+//	pthread_join(worker,NULL);
 }
 
 void systemReset(void){
 	printf("[system]Reset!\n");
+	exit(0);
 }
 void systemResetToBootloader(void) {
 	printf("[system]ResetToBootloader!\n");
+	exit(0);
 }
 
 // drivers/light_led.c
@@ -63,8 +93,12 @@ void timerInit(void) {
 void timerStart(void) {
 }
 void motorDevInit(const motorDevConfig_t *motorConfig, uint16_t idlePulse, uint8_t motorCount) {
+	UNUSED(motorConfig);
+	UNUSED(idlePulse);
+	UNUSED(motorCount);
 }
 void servoDevInit(const servoDevConfig_t *servoConfig) {
+	UNUSED(servoConfig);
 }
 void failureMode(failureMode_e mode) {
 	printf("[failureMode]!!! %d\n", mode);
@@ -123,13 +157,18 @@ bool pwmAreMotorsEnabled(void) {
 	return pwmMotorsEnabled;
 }
 void pwmWriteMotor(uint8_t index, uint16_t value) {
-
+	UNUSED(index);
+	UNUSED(value);
 }
 void pwmShutdownPulsesForAllMotors(uint8_t motorCount) {
+	UNUSED(motorCount);
 }
 void pwmCompleteMotorUpdate(uint8_t motorCount) {
+	UNUSED(motorCount);
 }
 void pwmWriteServo(uint8_t index, uint16_t value) {
+	UNUSED(index);
+	UNUSED(value);
 }
 
 uint16_t adcGetChannel(uint8_t channel) {
@@ -147,7 +186,13 @@ static FILE *eepromFd = NULL;
 const char *EEPROM_FILE = "eeprom.bin";
 
 void FLASH_Unlock(void) {
-	uint8_t * const eeprom = &__config_start;
+//	uint8_t * const eeprom = &__config_start;
+	uint8_t * eeprom = &__config_start;
+
+	if(eepromFd != NULL) {
+		printf("[FLASH_Unlock] eepromFd != NULL\n");
+		return;
+	}
 
 	// open or create
 	eepromFd = fopen(EEPROM_FILE,"r+");
@@ -164,7 +209,7 @@ void FLASH_Unlock(void) {
 		for(unsigned int i=0; i<((uintptr_t)&__FLASH_CONFIG_Size); i++){
 			c = fgetc(eepromFd);
 			if(c == EOF) break;
-			eeprom[i] = c;
+			eeprom[i] = (uint8_t)c;
 		}
 	}else{
 		eepromFd = fopen(EEPROM_FILE, "w+");
@@ -178,6 +223,10 @@ void FLASH_Lock(void) {
 		const uint8_t *eeprom = &__config_start;
 		fseek(eepromFd, 0, SEEK_SET);
 		fwrite(eeprom, sizeof(uint8_t), (size_t)&__FLASH_CONFIG_Size, eepromFd);
+		/*for(unsigned int i=0; i<((uintptr_t)&__FLASH_CONFIG_Size); i++){
+			fputc(eeprom[i], eepromFd);
+		}*/
+		fflush(eepromFd);
 		fclose(eepromFd);
 		eepromFd = NULL;
 	}

@@ -17,39 +17,45 @@
 
 #pragma once
 
+#include <netinet/in.h>
+#include <pthread.h>
+#include "target/SITL/dyad/src/dyad.h"
 // Since serial ports can be used for any function these buffer sizes should be equal
 // The two largest things that need to be sent are: 1, MSP responses, 2, UBLOX SVINFO packet.
 
 // Size must be a power of two due to various optimizations which use 'and' instead of 'mod'
 // Various serial routines return the buffer occupied size as uint8_t which would need to be extended in order to
 // increase size further.
-#define UART1_RX_BUFFER_SIZE    1400
-#define UART1_TX_BUFFER_SIZE    1400
-#define UART2_RX_BUFFER_SIZE    1400
-#define UART2_TX_BUFFER_SIZE    1400
-#define UART3_RX_BUFFER_SIZE    1400
-#define UART3_TX_BUFFER_SIZE    1400
-#define UART4_RX_BUFFER_SIZE    1400
-#define UART4_TX_BUFFER_SIZE    1400
-#define UART5_RX_BUFFER_SIZE    1400
-#define UART5_TX_BUFFER_SIZE    1400
-#define UART6_RX_BUFFER_SIZE    1400
-#define UART6_TX_BUFFER_SIZE    1400
-#define UART7_RX_BUFFER_SIZE    1400
-#define UART7_TX_BUFFER_SIZE    1400
-#define UART8_RX_BUFFER_SIZE    1400
-#define UART8_TX_BUFFER_SIZE    1400
+#define RX_BUFFER_SIZE    1400
+#define TX_BUFFER_SIZE    1400
 
 typedef struct {
     serialPort_t port;
+	volatile uint8_t rxBuffer[RX_BUFFER_SIZE];
+	volatile uint8_t txBuffer[TX_BUFFER_SIZE];
+
+	dyad_Stream *serv;
+	dyad_Stream *conn;
+	pthread_mutex_t txLock;
+	pthread_mutex_t rxLock;
+	bool connected;
+	uint16_t clientCount;
+	uint8_t id;
+	uint32_t lastSent;
 } uartPort_t;
 
 serialPort_t *uartOpen(USART_TypeDef *USARTx, serialReceiveCallbackPtr rxCallback, uint32_t baudRate, portMode_t mode, portOptions_t options);
 
 // serialPort API
 void tcpWrite(serialPort_t *instance, uint8_t ch);
+void tcpDataIn(uartPort_t *instance, uint8_t* ch, int size);
 uint32_t tcpTotalRxBytesWaiting(const serialPort_t *instance);
 uint32_t tcpTotalTxBytesFree(const serialPort_t *instance);
 uint8_t tcpRead(serialPort_t *instance);
+void tcpDataOut(uartPort_t *instance);
 bool isTcpTransmitBufferEmpty(const serialPort_t *s);
+
+bool tcpIsStart(void);
+bool* tcpGetUsed(void);
+uartPort_t* tcpGetPool(void);
 

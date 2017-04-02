@@ -1171,7 +1171,9 @@ ASFLAGS     = $(ARCH_FLAGS) \
               $(addprefix -I,$(INCLUDE_DIRS)) \
               -MMD -MP
 
-LDFLAGS     = -lm \
+LDFLAGS     = \
+              -lm \
+              -lpthread \
               -lc \
               -lrt \
               $(ARCH_FLAGS) \

@@ -22,6 +22,9 @@
 */
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
 
 #include "platform.h"
 
@@ -32,106 +35,158 @@
 #include "io/serial.h"
 #include "serial_tcp.h"
 
-static uartPort_t tcpSerialPorts[SERIAL_PORT_COUNT];
+#define BASE_PORT 5760
+
 const struct serialPortVTable uartVTable[]; // Forward
+static uartPort_t tcpSerialPorts[SERIAL_PORT_COUNT];
+static bool portInited[SERIAL_PORT_COUNT];
+static bool tcpStart = false;
+bool tcpIsStart(void) {
+	return tcpStart;
+}
+static void onData(dyad_Event *e) {
+	uartPort_t* s = (uartPort_t*)(e->udata);
+	tcpDataIn(s, (uint8_t*)e->data, e->size);
+}
+static void onClose(dyad_Event *e) {
+	uartPort_t* s = (uartPort_t*)(e->udata);
+	s->clientCount--;
+	s->conn = NULL;
+	fprintf(stderr, "[CLS]UART%u: %d,%d\n", s->id + 1, s->connected, s->clientCount);
+	if(s->clientCount == 0) {
+		s->connected = false;
+	}
+}
+static void onAccept(dyad_Event *e) {
+	uartPort_t* s = (uartPort_t*)(e->udata);
+	fprintf(stderr, "New connection on UART%u, %d\n", s->id + 1, s->clientCount);
 
-static void tcpReconfigure(uartPort_t *uartPort)
+	s->connected = true;
+	if(s->clientCount > 0) {
+		dyad_close(e->remote);
+		return;
+	}
+	s->clientCount++;
+	fprintf(stderr, "[NEW]UART%u: %d,%d\n", s->id + 1, s->connected, s->clientCount);
+	s->conn = e->remote;
+	dyad_setNoDelay(e->remote, 1);
+	dyad_addListener(e->remote, DYAD_EVENT_DATA, onData, e->udata);
+	dyad_addListener(e->remote, DYAD_EVENT_CLOSE, onClose, e->udata);
+}
+static uartPort_t* tcpReconfigure(uartPort_t *s, int id)
 {
+	if(portInited[id]) {
+		fprintf(stderr, "port had initialed!!\n");
+		return s;
+	}
 
+    if (pthread_mutex_init(&s->txLock, NULL) != 0) {
+		fprintf(stderr, "TX mutex init failed - %d\n", strerror(errno));
+		// TODO: clean up & re-init
+		return NULL;
+	}
+    if (pthread_mutex_init(&s->rxLock, NULL) != 0) {
+		fprintf(stderr, "RX mutex init failed - %d\n", strerror(errno));
+		// TODO: clean up & re-init
+		return NULL;
+	}
+
+	tcpStart = true;
+	portInited[id] = true;
+
+	s->connected = false;
+	s->clientCount = 0;
+	s->id = id;
+	s->lastSent = micros();
+	s->conn = NULL;
+	s->serv = dyad_newStream();
+	dyad_setNoDelay(s->serv, 1);
+	dyad_addListener(s->serv, DYAD_EVENT_ACCEPT, onAccept, s);
+
+	if(dyad_listen(s->serv, BASE_PORT + id + 1) == 0) {
+		fprintf(stderr, "bind port %u for UART%u\n", (unsigned)BASE_PORT + id + 1, (unsigned)id+1);
+	} else {
+		fprintf(stderr, "bind port %u for UART%u failed!!\n", (unsigned)BASE_PORT + id + 1, (unsigned)id+1);
+	}
+	return s;
 }
 
 serialPort_t *uartOpen(USART_TypeDef *USARTx, serialReceiveCallbackPtr rxCallback, uint32_t baudRate, portMode_t mode, portOptions_t options)
 {
     uartPort_t *s = NULL;
 
-    if (false) {
-#ifdef USE_UART1
-    } else if (USARTx == USART1) {
-        s = &tcpSerialPorts[0];
-
+#if defined(USE_UART1) || defined(USE_UART2) || defined(USE_UART3) || defined(USE_UART4) || defined(USE_UART5) || defined(USE_UART6) || defined(USE_UART7) || defined(USE_UART8)
+	uintptr_t id = ((uintptr_t)USARTx - 1);
+	s = tcpReconfigure(&tcpSerialPorts[id], id);
+#else
+	return (serialPort_t *)s;
 #endif
-#ifdef USE_UART2
-    } else if (USARTx == USART2) {
-        s = &tcpSerialPorts[1];
-#endif
-#ifdef USE_UART3
-    } else if (USARTx == USART3) {
-        s = &tcpSerialPorts[2];
-#endif
-#ifdef USE_UART4
-    } else if (USARTx == UART4) {
-        s = &tcpSerialPorts[3];
-#endif
-#ifdef USE_UART5
-    } else if (USARTx == UART5) {
-        s = &tcpSerialPorts[4];
-#endif
-#ifdef USE_UART6
-    } else if (USARTx == USART6) {
-        s = &tcpSerialPorts[5];
-#endif
-#ifdef USE_UART7
-    } else if (USARTx == USART7) {
-        s = &tcpSerialPorts[6];
-#endif
-#ifdef USE_UART8
-    } else if (USARTx == USART8) {
-        s = &tcpSerialPorts[7];
-#endif
-    } else {
-        return (serialPort_t *)s;
-    }
 
     s->port.vTable = uartVTable;
+
     // common serial initialisation code should move to serialPort::init()
     s->port.rxBufferHead = s->port.rxBufferTail = 0;
     s->port.txBufferHead = s->port.txBufferTail = 0;
+	s->port.rxBufferSize = RX_BUFFER_SIZE;
+	s->port.txBufferSize = TX_BUFFER_SIZE;
+	s->port.rxBuffer = s->rxBuffer;
+	s->port.txBuffer = s->txBuffer;
+
     // callback works for IRQ-based RX ONLY
     s->port.rxCallback = rxCallback;
     s->port.mode = mode;
     s->port.baudRate = baudRate;
     s->port.options = options;
 
-    tcpReconfigure(s);
-
     return (serialPort_t *)s;
 }
 
 uint32_t tcpTotalRxBytesWaiting(const serialPort_t *instance)
 {
-    const uartPort_t *s = (const uartPort_t*)instance;
+    uartPort_t *s = (uartPort_t*)instance;
+	uint32_t count;
+	pthread_mutex_lock(&s->rxLock);
     if (s->port.rxBufferHead >= s->port.rxBufferTail) {
-        return s->port.rxBufferHead - s->port.rxBufferTail;
+        count = s->port.rxBufferHead - s->port.rxBufferTail;
     } else {
-        return s->port.rxBufferSize + s->port.rxBufferHead - s->port.rxBufferTail;
+        count = s->port.rxBufferSize + s->port.rxBufferHead - s->port.rxBufferTail;
     }
+	pthread_mutex_unlock(&s->rxLock);
+
+	return count;
 }
 
 uint32_t tcpTotalTxBytesFree(const serialPort_t *instance)
 {
-    const uartPort_t *s = (const uartPort_t*)instance;
-
+    uartPort_t *s = (uartPort_t*)instance;
     uint32_t bytesUsed;
 
+	pthread_mutex_lock(&s->txLock);
     if (s->port.txBufferHead >= s->port.txBufferTail) {
         bytesUsed = s->port.txBufferHead - s->port.txBufferTail;
     } else {
         bytesUsed = s->port.txBufferSize + s->port.txBufferHead - s->port.txBufferTail;
     }
+	bytesUsed = (s->port.txBufferSize - 1) - bytesUsed;
+	pthread_mutex_unlock(&s->txLock);
 
-    return (s->port.txBufferSize - 1) - bytesUsed;
+    return bytesUsed;
 }
 
 bool isTcpTransmitBufferEmpty(const serialPort_t *instance)
 {
-    const uartPort_t *s = (const uartPort_t *)instance;
-    return s->port.txBufferTail == s->port.txBufferHead;
+    uartPort_t *s = (uartPort_t *)instance;
+	pthread_mutex_lock(&s->txLock);
+	bool isEmpty = s->port.txBufferTail == s->port.txBufferHead;
+	pthread_mutex_unlock(&s->txLock);
+    return isEmpty;
 }
 
 uint8_t tcpRead(serialPort_t *instance)
 {
     uint8_t ch;
     uartPort_t *s = (uartPort_t *)instance;
+	pthread_mutex_lock(&s->rxLock);
 
     ch = s->port.rxBuffer[s->port.rxBufferTail];
     if (s->port.rxBufferTail + 1 >= s->port.rxBufferSize) {
@@ -139,6 +194,7 @@ uint8_t tcpRead(serialPort_t *instance)
     } else {
         s->port.rxBufferTail++;
     }
+	pthread_mutex_unlock(&s->rxLock);
 
     return ch;
 }
@@ -146,14 +202,69 @@ uint8_t tcpRead(serialPort_t *instance)
 void tcpWrite(serialPort_t *instance, uint8_t ch)
 {
     uartPort_t *s = (uartPort_t *)instance;
+	pthread_mutex_lock(&s->txLock);
+
     s->port.txBuffer[s->port.txBufferHead] = ch;
     if (s->port.txBufferHead + 1 >= s->port.txBufferSize) {
         s->port.txBufferHead = 0;
     } else {
         s->port.txBufferHead++;
     }
+	pthread_mutex_unlock(&s->txLock);
+	tcpDataOut(s);
 
 	// TODO: trigger TX
+/*    uint32_t bytesUsed;
+    if (s->port.txBufferHead >= s->port.txBufferTail) {
+        bytesUsed = s->port.txBufferHead - s->port.txBufferTail;
+    } else {
+        bytesUsed = s->port.txBufferSize + s->port.txBufferHead - s->port.txBufferTail;
+    }
+	pthread_mutex_unlock(&s->txLock);
+//	printf("%c\n", ch);
+	if(((micros() - s->lastSent) > 20000) || (bytesUsed > 0 && bytesUsed > (TX_BUFFER_SIZE / 2))) {
+		s->lastSent = micros();
+		tcpDataOut(s);
+	}*/
+}
+
+void tcpDataOut(uartPort_t *instance)
+{
+    uint32_t bytesUsed;
+    uartPort_t *s = (uartPort_t *)instance;
+	if(s->conn == NULL) return;
+	pthread_mutex_lock(&s->txLock);
+
+    if (s->port.txBufferHead >= s->port.txBufferTail) {
+        bytesUsed = s->port.txBufferHead - s->port.txBufferTail;
+		dyad_write(s->conn, (const *)&(s->port.txBuffer[s->port.txBufferTail]), bytesUsed);
+		s->port.txBufferTail = s->port.txBufferHead;
+    } else {
+        bytesUsed = s->port.txBufferSize + s->port.txBufferHead - s->port.txBufferTail;
+		dyad_write(s->conn, (const *)&(s->port.txBuffer[s->port.txBufferTail]), s->port.txBufferSize - s->port.txBufferTail);
+		s->port.txBufferTail = 0;
+		//dyad_write(s->serv, &(s->port.txBuffer[0]), s->port.txBufferHead);
+    }
+//	printf("buf: %u\n", bytesUsed);
+	pthread_mutex_unlock(&s->txLock);
+}
+
+void tcpDataIn(uartPort_t *instance, uint8_t* ch, int size)
+{
+    uartPort_t *s = (uartPort_t *)instance;
+	pthread_mutex_lock(&s->rxLock);
+
+	while(size--) {
+//		printf("%c", *ch);
+		s->port.rxBuffer[s->port.rxBufferHead] = *(ch++);
+		if (s->port.rxBufferHead + 1 >= s->port.rxBufferSize) {
+		    s->port.rxBufferHead = 0;
+		} else {
+		    s->port.rxBufferHead++;
+		}
+	}
+	pthread_mutex_unlock(&s->rxLock);
+//	printf("\n");
 }
 
 const struct serialPortVTable uartVTable[] = {
