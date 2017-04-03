@@ -82,12 +82,12 @@ static uartPort_t* tcpReconfigure(uartPort_t *s, int id)
 	}
 
     if (pthread_mutex_init(&s->txLock, NULL) != 0) {
-		fprintf(stderr, "TX mutex init failed - %d\n", strerror(errno));
+		fprintf(stderr, "TX mutex init failed - %d\n", errno);
 		// TODO: clean up & re-init
 		return NULL;
 	}
     if (pthread_mutex_init(&s->rxLock, NULL) != 0) {
-		fprintf(stderr, "RX mutex init failed - %d\n", strerror(errno));
+		fprintf(stderr, "RX mutex init failed - %d\n", errno);
 		// TODO: clean up & re-init
 		return NULL;
 	}
@@ -98,7 +98,6 @@ static uartPort_t* tcpReconfigure(uartPort_t *s, int id)
 	s->connected = false;
 	s->clientCount = 0;
 	s->id = id;
-//	s->lastSent = millis();
 	s->conn = NULL;
 	s->serv = dyad_newStream();
 	dyad_setNoDelay(s->serv, 1);
@@ -145,16 +144,16 @@ serialPort_t *uartOpen(USART_TypeDef *USARTx, serialReceiveCallbackPtr rxCallbac
 uint32_t tcpTotalRxBytesWaiting(const serialPort_t *instance)
 {
     uartPort_t *s = (uartPort_t*)instance;
-	uint32_t count;
-	pthread_mutex_lock(&s->rxLock);
+    uint32_t count;
+    pthread_mutex_lock(&s->rxLock);
     if (s->port.rxBufferHead >= s->port.rxBufferTail) {
         count = s->port.rxBufferHead - s->port.rxBufferTail;
     } else {
         count = s->port.rxBufferSize + s->port.rxBufferHead - s->port.rxBufferTail;
     }
-	pthread_mutex_unlock(&s->rxLock);
+    pthread_mutex_unlock(&s->rxLock);
 
-	return count;
+    return count;
 }
 
 uint32_t tcpTotalTxBytesFree(const serialPort_t *instance)
@@ -162,14 +161,14 @@ uint32_t tcpTotalTxBytesFree(const serialPort_t *instance)
     uartPort_t *s = (uartPort_t*)instance;
     uint32_t bytesUsed;
 
-	pthread_mutex_lock(&s->txLock);
+    pthread_mutex_lock(&s->txLock);
     if (s->port.txBufferHead >= s->port.txBufferTail) {
         bytesUsed = s->port.txBufferHead - s->port.txBufferTail;
     } else {
         bytesUsed = s->port.txBufferSize + s->port.txBufferHead - s->port.txBufferTail;
     }
 	bytesUsed = (s->port.txBufferSize - 1) - bytesUsed;
-	pthread_mutex_unlock(&s->txLock);
+    pthread_mutex_unlock(&s->txLock);
 
     return bytesUsed;
 }
@@ -177,9 +176,9 @@ uint32_t tcpTotalTxBytesFree(const serialPort_t *instance)
 bool isTcpTransmitBufferEmpty(const serialPort_t *instance)
 {
     uartPort_t *s = (uartPort_t *)instance;
-	pthread_mutex_lock(&s->txLock);
-	bool isEmpty = s->port.txBufferTail == s->port.txBufferHead;
-	pthread_mutex_unlock(&s->txLock);
+    pthread_mutex_lock(&s->txLock);
+    bool isEmpty = s->port.txBufferTail == s->port.txBufferHead;
+    pthread_mutex_unlock(&s->txLock);
     return isEmpty;
 }
 
@@ -187,7 +186,7 @@ uint8_t tcpRead(serialPort_t *instance)
 {
     uint8_t ch;
     uartPort_t *s = (uartPort_t *)instance;
-	pthread_mutex_lock(&s->rxLock);
+    pthread_mutex_lock(&s->rxLock);
 
     ch = s->port.rxBuffer[s->port.rxBufferTail];
     if (s->port.rxBufferTail + 1 >= s->port.rxBufferSize) {
@@ -195,7 +194,7 @@ uint8_t tcpRead(serialPort_t *instance)
     } else {
         s->port.rxBufferTail++;
     }
-	pthread_mutex_unlock(&s->rxLock);
+    pthread_mutex_unlock(&s->rxLock);
 
     return ch;
 }
@@ -203,7 +202,7 @@ uint8_t tcpRead(serialPort_t *instance)
 void tcpWrite(serialPort_t *instance, uint8_t ch)
 {
     uartPort_t *s = (uartPort_t *)instance;
-	pthread_mutex_lock(&s->txLock);
+    pthread_mutex_lock(&s->txLock);
 
     s->port.txBuffer[s->port.txBufferHead] = ch;
     if (s->port.txBufferHead + 1 >= s->port.txBufferSize) {
@@ -211,43 +210,28 @@ void tcpWrite(serialPort_t *instance, uint8_t ch)
     } else {
         s->port.txBufferHead++;
     }
-	pthread_mutex_unlock(&s->txLock);
-	tcpDataOut(s);
+    pthread_mutex_unlock(&s->txLock);
 
-	// TODO: trigger TX
-/*    uint32_t bytesUsed;
-    if (s->port.txBufferHead >= s->port.txBufferTail) {
-        bytesUsed = s->port.txBufferHead - s->port.txBufferTail;
-    } else {
-        bytesUsed = s->port.txBufferSize + s->port.txBufferHead - s->port.txBufferTail;
-    }
-	pthread_mutex_unlock(&s->txLock);
-//	printf("%c\n", ch);
-	if(((millis() - s->lastSent) > 10) || (bytesUsed > 0 && bytesUsed > (TX_BUFFER_SIZE / 2))) {
-		s->lastSent = millis();
-		tcpDataOut(s);
-	}*/
+    tcpDataOut(s);
 }
 
 void tcpDataOut(uartPort_t *instance)
 {
     uint32_t bytesUsed;
     uartPort_t *s = (uartPort_t *)instance;
-	if(s->conn == NULL) return;
-	pthread_mutex_lock(&s->txLock);
+    if(s->conn == NULL) return;
+    pthread_mutex_lock(&s->txLock);
 
-    if (s->port.txBufferHead >= s->port.txBufferTail) {
-        bytesUsed = s->port.txBufferHead - s->port.txBufferTail;
-		dyad_write(s->conn, (const void *)(&(s->port.txBuffer[s->port.txBufferTail])), bytesUsed);
-		s->port.txBufferTail = s->port.txBufferHead;
-    } else {
+    if (s->port.txBufferHead < s->port.txBufferTail) {
         bytesUsed = s->port.txBufferSize + s->port.txBufferHead - s->port.txBufferTail;
-		dyad_write(s->conn, (const void *)(s->port.txBuffer + s->port.txBufferTail), s->port.txBufferSize - s->port.txBufferTail);
-		s->port.txBufferTail = 0;
-		//dyad_write(s->serv, (const void *)&(s->port.txBuffer[0]), s->port.txBufferHead);
+        dyad_write(s->conn, (const void *)(s->port.txBuffer + s->port.txBufferTail), s->port.txBufferSize - s->port.txBufferTail);
+        s->port.txBufferTail = 0;
     }
-//	printf("buf: %u\n", bytesUsed);
-	pthread_mutex_unlock(&s->txLock);
+    bytesUsed = s->port.txBufferHead - s->port.txBufferTail;
+    dyad_write(s->conn, (const void *)(&(s->port.txBuffer[s->port.txBufferTail])), bytesUsed);
+    s->port.txBufferTail = s->port.txBufferHead;
+
+    pthread_mutex_unlock(&s->txLock);
 }
 
 void tcpDataIn(uartPort_t *instance, uint8_t* ch, int size)

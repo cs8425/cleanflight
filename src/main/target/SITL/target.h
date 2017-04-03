@@ -204,7 +204,23 @@ typedef enum
   FLASH_ERROR_WRP,
   FLASH_COMPLETE,
   FLASH_TIMEOUT
-}FLASH_Status;
+} FLASH_Status;
 
+typedef struct {
+	double timestamp;	// in seconds
+	double imu_angular_velocity_rpy[3];	// range: +/- 8192; +/- 2000 deg/se
+	double imu_linear_acceleration_xyz[3];	// sim 1G = 9.81 -> FC 1G = 512
+	double imu_orientation_quat[4];
+	double velocity_xyz[3];
+	double position_xyz[3];
+} fdm_packet;
+typedef struct {
+	float motor_speed[4];	// [0.0, 1.0]
+} servo_packet;
+
+void FLASH_Unlock(void);
+void FLASH_Lock(void);
+FLASH_Status FLASH_ErasePage(uint32_t Page_Address);
+FLASH_Status FLASH_ProgramWord(uint32_t addr, uint32_t Data);
 
 

@@ -1154,7 +1154,7 @@ LDFLAGS     = -lm \
 
 #SITL compile
 ifeq ($(TARGET),$(filter $(TARGET),$(SITL_TARGETS)))
-CFLAGS      += $(ARCH_FLAGS) \
+CFLAGS      = $(ARCH_FLAGS) \
               $(addprefix -D,$(OPTIONS)) \
               $(addprefix -I,$(INCLUDE_DIRS)) \
               $(DEBUG_FLAGS) \
@@ -1186,6 +1186,8 @@ LDFLAGS     = \
               $(ARCH_FLAGS) \
               $(LTO_FLAGS) \
               $(DEBUG_FLAGS) \
+              -static \
+              -static-libgcc \
               -Wl,-gc-sections,-Map,$(TARGET_MAP) \
               -Wl,-L$(LINKER_DIR) \
               -Wl,--cref \

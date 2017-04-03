@@ -41,7 +41,6 @@ typedef struct {
 	bool connected;
 	uint16_t clientCount;
 	uint8_t id;
-	uint32_t lastSent;
 } uartPort_t;
 
 serialPort_t *uartOpen(USART_TypeDef *USARTx, serialReceiveCallbackPtr rxCallback, uint32_t baudRate, portMode_t mode, portOptions_t options);

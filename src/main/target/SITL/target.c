@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #define printf printf
 #define sprintf sprintf
 
@@ -37,13 +38,56 @@
 #include "drivers/timer_def.h"
 const timerHardware_t timerHardware[USABLE_TIMER_CHANNEL_COUNT] = {};
 
-#include "target/SITL/dyad/src/dyad.h"
+#include "drivers/accgyro_fake.h"
+#include "flight/imu.h"
 
-void FLASH_Unlock(void);
+#include "target/SITL/dyad/src/dyad.h"
+#include "target/SITL/udplink.h"
+
+static fdm_packet fdmPkt;
+static servo_packet pwmPkt;
 
 static struct timespec start_time;
-static pthread_t worker;
+static pthread_t tcpWorker, udpWorker;
 static bool workerRunning = true;
+static udpLink_t stateLink, pwmLink;
+
+#define ACC_SCALE (512 / 9.81)
+#define GYRO_SCALE ((180.0 / M_PI) * 8192 / 2000.0)
+void updateState(const fdm_packet* pkt) {
+	int16_t x,y,z;
+	x = -pkt->imu_linear_acceleration_xyz[0] * ACC_SCALE;
+	y = -pkt->imu_linear_acceleration_xyz[1] * ACC_SCALE;
+	z = -pkt->imu_linear_acceleration_xyz[2] * ACC_SCALE;
+	fakeAccSet(x, y, z);
+//	printf("[acc]%lf,%lf,%lf\n", pkt->imu_linear_acceleration_xyz[0], pkt->imu_linear_acceleration_xyz[1], pkt->imu_linear_acceleration_xyz[2]);
+
+	x = pkt->imu_angular_velocity_rpy[0] * GYRO_SCALE;
+	y = -pkt->imu_angular_velocity_rpy[1] * GYRO_SCALE;
+	z = -pkt->imu_angular_velocity_rpy[2] * GYRO_SCALE;
+	fakeGyroSet(x, y, z);
+//	printf("[gyr]%lf,%lf,%lf\n", pkt->imu_angular_velocity_rpy[0], pkt->imu_angular_velocity_rpy[1], pkt->imu_angular_velocity_rpy[2]);
+
+//	q.w = pkt->imu_orientation_quat[0];
+//	pos.x = pkt->position_xyz[0];
+//	spd.x = pkt->velocity_xyz[0];
+}
+
+static void* udpThread(void* data) {
+	UNUSED(data);
+	int n = 0;
+
+	while (workerRunning) {
+		n = udpRecv(&stateLink, &fdmPkt, sizeof(fdm_packet), 100);
+		if(n == sizeof(fdm_packet)) {
+//			printf("[data]new fdm %d\n", n);
+			updateState(&fdmPkt);
+		}
+	}
+
+	printf("udpThread end!!\n");
+	return NULL;
+}
 
 static void* tcpThread(void* data) {
 	UNUSED(data);
@@ -61,16 +105,31 @@ static void* tcpThread(void* data) {
 	return NULL;
 }
 
+// system
 void systemInit(void) {
+	int ret;
+
 	clock_gettime(CLOCK_MONOTONIC, &start_time);
 	printf("[system]Init...\n");
 
 	SystemCoreClock = 500 * 1e6;
 	FLASH_Unlock();
 
-	int ret = pthread_create(&worker, NULL, tcpThread, NULL);
+	ret = pthread_create(&tcpWorker, NULL, tcpThread, NULL);
 	if(ret != 0) {
-		printf("Create pthread error!\n");
+		printf("Create tcpWorker error!\n");
+		exit(1);
+	}
+
+	ret = udpInit(&pwmLink, "127.0.0.1", 9002, false);
+	printf("init PwnOut UDP link...%d\n", ret);
+
+	ret = udpInit(&stateLink, NULL, 9003, true);
+	printf("start UDP server...%d\n", ret);
+
+	ret = pthread_create(&udpWorker, NULL, udpThread, NULL);
+	if(ret != 0) {
+		printf("Create udpWorker error!\n");
 		exit(1);
 	}
 }
@@ -78,13 +137,15 @@ void systemInit(void) {
 void systemReset(void){
 	printf("[system]Reset!\n");
 	workerRunning = false;
-	pthread_join(worker,NULL);
+	pthread_join(tcpWorker, NULL);
+	pthread_join(udpWorker, NULL);
 	exit(0);
 }
 void systemResetToBootloader(void) {
 	printf("[system]ResetToBootloader!\n");
 	workerRunning = false;
-	pthread_join(worker,NULL);
+	pthread_join(tcpWorker, NULL);
+	pthread_join(udpWorker, NULL);
 	exit(0);
 }
 
@@ -104,6 +165,7 @@ void failureMode(failureMode_e mode) {
 }
 
 
+// Time part
 // Thanks ArduPilot
 uint64_t micros64() {
 	struct timespec ts;
@@ -146,14 +208,22 @@ void delay(uint32_t ms) {
 }
 
 
+// PWM part
 bool pwmMotorsEnabled = false;
 static pwmOutputPort_t motors[MAX_SUPPORTED_MOTORS];
 static pwmOutputPort_t servos[MAX_SUPPORTED_SERVOS];
 
-void motorDevInit(const motorDevConfig_t *motorConfig, uint16_t idlePulse, uint8_t motorCount) {
+// real value to send
+static uint16_t motorsPwm[MAX_SUPPORTED_MOTORS];
+static uint16_t servosPwm[MAX_SUPPORTED_SERVOS];
+static uint16_t idlePulse;
+
+void motorDevInit(const motorDevConfig_t *motorConfig, uint16_t _idlePulse, uint8_t motorCount) {
 	UNUSED(motorConfig);
-	UNUSED(idlePulse);
 	UNUSED(motorCount);
+
+	idlePulse = _idlePulse;
+
 	for (int motorIndex = 0; motorIndex < MAX_SUPPORTED_MOTORS && motorIndex < motorCount; motorIndex++) {
 		motors[motorIndex].enabled = true;
 	}
@@ -173,7 +243,8 @@ bool pwmAreMotorsEnabled(void) {
 	return pwmMotorsEnabled;
 }
 void pwmWriteMotor(uint8_t index, uint16_t value) {
-	motors[index].period = value;
+	motorsPwm[index] = value - idlePulse;
+//	motorsPwm[index] = value;
 }
 void pwmShutdownPulsesForAllMotors(uint8_t motorCount) {
 	UNUSED(motorCount);
@@ -181,16 +252,27 @@ void pwmShutdownPulsesForAllMotors(uint8_t motorCount) {
 }
 void pwmCompleteMotorUpdate(uint8_t motorCount) {
 	UNUSED(motorCount);
+	// send to simulator
+	// for gazebo8 ArduCopterPlugin remap, range = [0.0, 1.0]
+	pwmPkt.motor_speed[3] = motorsPwm[0] / 1000.0f;
+	pwmPkt.motor_speed[0] = motorsPwm[1] / 1000.0f;
+	pwmPkt.motor_speed[1] = motorsPwm[2] / 1000.0f;
+	pwmPkt.motor_speed[2] = motorsPwm[3] / 1000.0f;
+
+//	printf("[pwm]%u:%u,%u,%u,%u\n", idlePulse, motorsPwm[0], motorsPwm[1], motorsPwm[2], motorsPwm[3]);
+	udpSend(&pwmLink, &pwmPkt, sizeof(servo_packet));
 }
 void pwmWriteServo(uint8_t index, uint16_t value) {
-	servos[index].period = value;
+	servosPwm[index] = value;
 }
 
+// ADC part
 uint16_t adcGetChannel(uint8_t channel) {
 	UNUSED(channel);
 	return 0;
 }
 
+// stack part
 char _estack;
 char _Min_Stack_Size;
 
@@ -228,7 +310,6 @@ void FLASH_Unlock(void) {
 	}else{
 		eepromFd = fopen(EEPROM_FILE, "w+");
 		fwrite(eeprom, sizeof(uint8_t), (size_t)&__FLASH_CONFIG_Size, eepromFd);
-		//ftruncate(fileno(eepromFd), &__FLASH_CONFIG_Size); // this only on linux
 	}
 }
 void FLASH_Lock(void) {
@@ -243,20 +324,14 @@ void FLASH_Lock(void) {
 	}
 }
 
-FLASH_Status FLASH_EraseSector(uint32_t FLASH_Sector, uint8_t VoltageRange) {
-	UNUSED(FLASH_Sector);
-	UNUSED(VoltageRange);
-	return FLASH_COMPLETE;
-}
 FLASH_Status FLASH_ErasePage(uint32_t Page_Address) {
-//	UNUSED(Page_Address);
-	printf("[FLASH_ErasePage]%x\n", Page_Address);
+	UNUSED(Page_Address);
+//	printf("[FLASH_ErasePage]%x\n", Page_Address);
 	return FLASH_COMPLETE;
 }
 FLASH_Status FLASH_ProgramWord(uint32_t addr, uint32_t Data) {
 	*((uint32_t*)(uintptr_t)addr) = Data;
 //	printf("[FLASH_ProgramWord]0x%x = %x\n", addr, *((uint32_t*)(uintptr_t)addr));
-
 	return FLASH_COMPLETE;
 }
 
