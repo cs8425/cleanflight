@@ -98,14 +98,6 @@ void timerInit(void) {
 }
 void timerStart(void) {
 }
-void motorDevInit(const motorDevConfig_t *motorConfig, uint16_t idlePulse, uint8_t motorCount) {
-	UNUSED(motorConfig);
-	UNUSED(idlePulse);
-	UNUSED(motorCount);
-}
-void servoDevInit(const servoDevConfig_t *servoConfig) {
-	UNUSED(servoConfig);
-}
 void failureMode(failureMode_e mode) {
 	printf("[failureMode]!!! %d\n", mode);
 	while(1);
@@ -154,8 +146,26 @@ void delay(uint32_t ms) {
 }
 
 
-bool pwmMotorsEnabled = true;
+bool pwmMotorsEnabled = false;
 static pwmOutputPort_t motors[MAX_SUPPORTED_MOTORS];
+static pwmOutputPort_t servos[MAX_SUPPORTED_SERVOS];
+
+void motorDevInit(const motorDevConfig_t *motorConfig, uint16_t idlePulse, uint8_t motorCount) {
+	UNUSED(motorConfig);
+	UNUSED(idlePulse);
+	UNUSED(motorCount);
+	for (int motorIndex = 0; motorIndex < MAX_SUPPORTED_MOTORS && motorIndex < motorCount; motorIndex++) {
+		motors[motorIndex].enabled = true;
+	}
+	pwmMotorsEnabled = true;
+}
+void servoDevInit(const servoDevConfig_t *servoConfig) {
+	UNUSED(servoConfig);
+	for (uint8_t servoIndex = 0; servoIndex < MAX_SUPPORTED_SERVOS; servoIndex++) {
+		servos[servoIndex].enabled = true;
+	}
+}
+
 pwmOutputPort_t *pwmGetMotors(void) {
 	return motors;
 }
@@ -163,18 +173,17 @@ bool pwmAreMotorsEnabled(void) {
 	return pwmMotorsEnabled;
 }
 void pwmWriteMotor(uint8_t index, uint16_t value) {
-	UNUSED(index);
-	UNUSED(value);
+	motors[index].period = value;
 }
 void pwmShutdownPulsesForAllMotors(uint8_t motorCount) {
 	UNUSED(motorCount);
+	pwmMotorsEnabled = false;
 }
 void pwmCompleteMotorUpdate(uint8_t motorCount) {
 	UNUSED(motorCount);
 }
 void pwmWriteServo(uint8_t index, uint16_t value) {
-	UNUSED(index);
-	UNUSED(value);
+	servos[index].period = value;
 }
 
 uint16_t adcGetChannel(uint8_t channel) {

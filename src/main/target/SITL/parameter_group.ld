@@ -29,7 +29,7 @@ SECTIONS {
   .FLASH_CONFIG :
   {
     PROVIDE_HIDDEN (__config_start = . );
-    . = . + 4096;
+    . = . + __FLASH_CONFIG_Size;
     PROVIDE_HIDDEN (__config_end = . );
   }
 }
