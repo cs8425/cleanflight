@@ -209,7 +209,7 @@ typedef enum
 typedef struct {
 	double timestamp;	// in seconds
 	double imu_angular_velocity_rpy[3];	// range: +/- 8192; +/- 2000 deg/se
-	double imu_linear_acceleration_xyz[3];	// sim 1G = 9.81 -> FC 1G = 512
+	double imu_linear_acceleration_xyz[3];	// sim 1G = 9.81 -> FC 1G = 256
 	double imu_orientation_quat[4];
 	double velocity_xyz[3];
 	double position_xyz[3];

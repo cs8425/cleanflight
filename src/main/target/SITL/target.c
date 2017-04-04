@@ -51,10 +51,13 @@ static struct timespec start_time;
 static pthread_t tcpWorker, udpWorker;
 static bool workerRunning = true;
 static udpLink_t stateLink, pwmLink;
+static pthread_mutex_t updateLock;
 
-#define ACC_SCALE (512 / 9.81)
-#define GYRO_SCALE ((180.0 / M_PI) * 8192 / 2000.0)
+#define RAD2DEG (180.0 / M_PI)
+#define ACC_SCALE (256 / 9.81)
+#define GYRO_SCALE (8192 / 2000.0)
 void updateState(const fdm_packet* pkt) {
+
 	int16_t x,y,z;
 	x = -pkt->imu_linear_acceleration_xyz[0] * ACC_SCALE;
 	y = -pkt->imu_linear_acceleration_xyz[1] * ACC_SCALE;
@@ -62,13 +65,60 @@ void updateState(const fdm_packet* pkt) {
 	fakeAccSet(x, y, z);
 //	printf("[acc]%lf,%lf,%lf\n", pkt->imu_linear_acceleration_xyz[0], pkt->imu_linear_acceleration_xyz[1], pkt->imu_linear_acceleration_xyz[2]);
 
-	x = pkt->imu_angular_velocity_rpy[0] * GYRO_SCALE;
-	y = -pkt->imu_angular_velocity_rpy[1] * GYRO_SCALE;
-	z = -pkt->imu_angular_velocity_rpy[2] * GYRO_SCALE;
-	fakeGyroSet(x, y, z);
+//	x = 0;//pkt->imu_angular_velocity_rpy[0] * GYRO_SCALE * RAD2DEG;
+//	y = 0;//pkt->imu_angular_velocity_rpy[1] * GYRO_SCALE * RAD2DEG;
+//	z = -pkt->imu_angular_velocity_rpy[2] * GYRO_SCALE * RAD2DEG;
+//	fakeGyroSet(x, y, z);
 //	printf("[gyr]%lf,%lf,%lf\n", pkt->imu_angular_velocity_rpy[0], pkt->imu_angular_velocity_rpy[1], pkt->imu_angular_velocity_rpy[2]);
 
-//	q.w = pkt->imu_orientation_quat[0];
+	// [0, 1, 2, 3] >> [w, x, y, z]
+	// rot 180 deg @ X-axis: [0, 1, 0, 0]
+/*	double quat[4];
+	double qax = pkt->imu_orientation_quat[1], qay = pkt->imu_orientation_quat[2], qaz = pkt->imu_orientation_quat[3], qaw = pkt->imu_orientation_quat[0];
+	double qbx = 1, qby = 0, qbz = 0, qbw = 0;
+
+	quat[1] = qax * qbw + qaw * qbx + qay * qbz - qaz * qby;
+	quat[2] = qay * qbw + qaw * qby + qaz * qbx - qax * qbz;
+	quat[3] = qaz * qbw + qaw * qbz + qax * qby - qay * qbx;
+	quat[0] = qaw * qbw - qax * qbx - qay * qby - qaz * qbz;
+	imuSetAttitudeQuat(pkt->imu_orientation_quat[0], pkt->imu_orientation_quat[1], pkt->imu_orientation_quat[2], pkt->imu_orientation_quat[3]);
+//	imuSetAttitudeQuat(quat[0], quat[1], quat[2], quat[3]);*/
+	double qw = pkt->imu_orientation_quat[0];
+	double qx = pkt->imu_orientation_quat[1];
+	double qy = pkt->imu_orientation_quat[2];
+	double qz = pkt->imu_orientation_quat[3];
+	double ysqr = qy * qy;
+	double xf, yf, zf;
+
+	// roll (x-axis rotation)
+	double t0 = +2.0 * (qw * qx + qy * qz);
+	double t1 = +1.0 - 2.0 * (qx * qx + ysqr);
+	xf = atan2(t0, t1) * RAD2DEG;
+
+	// pitch (y-axis rotation)
+	double t2 = +2.0 * (qw * qy - qz * qx);
+	t2 = t2 > 1.0 ? 1.0 : t2;
+	t2 = t2 < -1.0 ? -1.0 : t2;
+	yf = asin(t2) * RAD2DEG; // from wiki
+//	yf = (0.5*Math.PI - Math.acos(t2)) * RAD2DEG // from betaflight imu.c
+
+	// yaw (z-axis rotation)
+	double t3 = +2.0 * (qw * qz + qx * qy);
+	double t4 = +1.0 - 2.0 * (ysqr + qz * qz);
+	zf = atan2(t3, t4) * RAD2DEG;
+	imuSetAttitudeRPY(xf, -yf, zf);	// yes! pitch was inverted!!
+
+/*	static double gx, gy, gz;
+
+	x = (xf - gx) * GYRO_SCALE;
+	y = (yf - gy) * GYRO_SCALE;
+	z = (zf - gz) * GYRO_SCALE;
+	fakeGyroSet(x, y, z);
+
+	gx = xf;
+	gy = yf;
+	gz = zf;*/
+
 //	pos.x = pkt->position_xyz[0];
 //	spd.x = pkt->velocity_xyz[0];
 }
@@ -77,11 +127,13 @@ static void* udpThread(void* data) {
 	UNUSED(data);
 	int n = 0;
 
+//	pthread_mutex_lock(&updateLock);
 	while (workerRunning) {
 		n = udpRecv(&stateLink, &fdmPkt, sizeof(fdm_packet), 100);
 		if(n == sizeof(fdm_packet)) {
 //			printf("[data]new fdm %d\n", n);
 			updateState(&fdmPkt);
+			pthread_mutex_unlock(&updateLock);
 		}
 	}
 
@@ -114,6 +166,11 @@ void systemInit(void) {
 
 	SystemCoreClock = 500 * 1e6;
 	FLASH_Unlock();
+
+	if (pthread_mutex_init(&updateLock, NULL) != 0) {
+		printf("Create updateLock error!\n");
+		exit(1);
+	}
 
 	ret = pthread_create(&tcpWorker, NULL, tcpThread, NULL);
 	if(ret != 0) {
@@ -259,8 +316,10 @@ void pwmCompleteMotorUpdate(uint8_t motorCount) {
 	pwmPkt.motor_speed[1] = motorsPwm[2] / 1000.0f;
 	pwmPkt.motor_speed[2] = motorsPwm[3] / 1000.0f;
 
-//	printf("[pwm]%u:%u,%u,%u,%u\n", idlePulse, motorsPwm[0], motorsPwm[1], motorsPwm[2], motorsPwm[3]);
+
+	if(pthread_mutex_trylock(&updateLock) != 0) return;
 	udpSend(&pwmLink, &pwmPkt, sizeof(servo_packet));
+//	printf("[pwm]%u:%u,%u,%u,%u\n", idlePulse, motorsPwm[0], motorsPwm[1], motorsPwm[2], motorsPwm[3]);
 }
 void pwmWriteServo(uint8_t index, uint16_t value) {
 	servosPwm[index] = value;
