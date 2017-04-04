@@ -395,7 +395,7 @@ static void imuCalculateEstimatedAttitude(timeUs_t currentTimeUs)
     }
 #endif
 
-#ifdef SITL
+#if defined(SITL) && defined(SKIP_IMU_CALC)
 	UNUSED(imuMahonyAHRSupdate);
 	UNUSED(useAcc);
 	UNUSED(useMag);

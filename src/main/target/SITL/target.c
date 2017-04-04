@@ -64,6 +64,7 @@ void updateState(const fdm_packet* pkt) {
 	const uint64_t realtime_now = micros64_real();
 	if(realtime_now > last_realtime + 500*1e3) { // 500ms timeout
 		last_timestamp = 0;
+		last_realtime = 0;
 	}
 
 	const double deltaSim = pkt->timestamp - last_timestamp;  // in seconds
@@ -84,6 +85,7 @@ void updateState(const fdm_packet* pkt) {
 	fakeGyroSet(x, y, z);
 //	printf("[gyr]%lf,%lf,%lf\n", pkt->imu_angular_velocity_rpy[0], pkt->imu_angular_velocity_rpy[1], pkt->imu_angular_velocity_rpy[2]);
 
+#if defined(SKIP_IMU_CALC)
 	double qw = pkt->imu_orientation_quat[0];
 	double qx = pkt->imu_orientation_quat[1];
 	double qy = pkt->imu_orientation_quat[2];
@@ -107,10 +109,10 @@ void updateState(const fdm_packet* pkt) {
 	double t4 = +1.0 - 2.0 * (ysqr + qz * qz);
 	zf = atan2(t3, t4) * RAD2DEG;
 	imuSetAttitudeRPY(xf, -yf, zf); // yes! pitch was inverted!!
+#endif
 
-
-	if(deltaSim < 0.02 && deltaSim > 0) { // should run faster than 50Hz
-		simRate = 0.25;//1e6 * deltaSim / (realtime_now - last_realtime);
+	if(last_realtime != 0 && deltaSim < 0.02 && deltaSim > 0) { // should run faster than 50Hz
+		simRate = simRate * 0.99 + (1e6 * deltaSim / (realtime_now - last_realtime)) * 0.01;
 	}
 	last_timestamp = pkt->timestamp;
 	last_realtime = micros64_real();
@@ -123,7 +125,6 @@ static void* udpThread(void* data) {
 	UNUSED(data);
 	int n = 0;
 
-//	pthread_mutex_lock(&updateLock);
 	while (workerRunning) {
 		n = udpRecv(&stateLink, &fdmPkt, sizeof(fdm_packet), 100);
 		if(n == sizeof(fdm_packet)) {
@@ -314,7 +315,6 @@ bool pwmAreMotorsEnabled(void) {
 }
 void pwmWriteMotor(uint8_t index, uint16_t value) {
 	motorsPwm[index] = value - idlePulse;
-//	motorsPwm[index] = value;
 }
 void pwmShutdownPulsesForAllMotors(uint8_t motorCount) {
 	UNUSED(motorCount);

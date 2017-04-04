@@ -19,6 +19,9 @@
 
 #define TARGET_BOARD_IDENTIFIER "SITL"
 
+// use simulatior's attitude directly
+#define SKIP_IMU_CALC
+
 //#define USBD_PRODUCT_STRING "SITL"
 
 #define FLASH_SIZE 2048
@@ -100,7 +103,6 @@
 #define TARGET_IO_PORTA         0xffff
 #define TARGET_IO_PORTB         0xffff
 #define TARGET_IO_PORTC         0xffff
-
 
 #define USE_PARAMETER_GROUPS
 
