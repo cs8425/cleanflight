@@ -6,5 +6,5 @@ TARGET_SRC = \
             drivers/barometer_fake.c \
             drivers/compass_fake.c \
             drivers/serial_tcp.c \
-            target/SITL/dyad/src/dyad.c
+            target/SITL/dyad/dyad.c
 

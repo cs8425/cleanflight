@@ -41,7 +41,7 @@ const timerHardware_t timerHardware[USABLE_TIMER_CHANNEL_COUNT] = {};
 #include "drivers/accgyro_fake.h"
 #include "flight/imu.h"
 
-#include "target/SITL/dyad/src/dyad.h"
+#include "target/SITL/dyad/dyad.h"
 #include "target/SITL/udplink.h"
 
 static fdm_packet fdmPkt;
@@ -65,24 +65,6 @@ void updateState(const fdm_packet* pkt) {
 	fakeAccSet(x, y, z);
 //	printf("[acc]%lf,%lf,%lf\n", pkt->imu_linear_acceleration_xyz[0], pkt->imu_linear_acceleration_xyz[1], pkt->imu_linear_acceleration_xyz[2]);
 
-//	x = 0;//pkt->imu_angular_velocity_rpy[0] * GYRO_SCALE * RAD2DEG;
-//	y = 0;//pkt->imu_angular_velocity_rpy[1] * GYRO_SCALE * RAD2DEG;
-//	z = -pkt->imu_angular_velocity_rpy[2] * GYRO_SCALE * RAD2DEG;
-//	fakeGyroSet(x, y, z);
-//	printf("[gyr]%lf,%lf,%lf\n", pkt->imu_angular_velocity_rpy[0], pkt->imu_angular_velocity_rpy[1], pkt->imu_angular_velocity_rpy[2]);
-
-	// [0, 1, 2, 3] >> [w, x, y, z]
-	// rot 180 deg @ X-axis: [0, 1, 0, 0]
-/*	double quat[4];
-	double qax = pkt->imu_orientation_quat[1], qay = pkt->imu_orientation_quat[2], qaz = pkt->imu_orientation_quat[3], qaw = pkt->imu_orientation_quat[0];
-	double qbx = 1, qby = 0, qbz = 0, qbw = 0;
-
-	quat[1] = qax * qbw + qaw * qbx + qay * qbz - qaz * qby;
-	quat[2] = qay * qbw + qaw * qby + qaz * qbx - qax * qbz;
-	quat[3] = qaz * qbw + qaw * qbz + qax * qby - qay * qbx;
-	quat[0] = qaw * qbw - qax * qbx - qay * qby - qaz * qbz;
-	imuSetAttitudeQuat(pkt->imu_orientation_quat[0], pkt->imu_orientation_quat[1], pkt->imu_orientation_quat[2], pkt->imu_orientation_quat[3]);
-//	imuSetAttitudeQuat(quat[0], quat[1], quat[2], quat[3]);*/
 	double qw = pkt->imu_orientation_quat[0];
 	double qx = pkt->imu_orientation_quat[1];
 	double qy = pkt->imu_orientation_quat[2];
@@ -100,7 +82,6 @@ void updateState(const fdm_packet* pkt) {
 	t2 = t2 > 1.0 ? 1.0 : t2;
 	t2 = t2 < -1.0 ? -1.0 : t2;
 	yf = asin(t2) * RAD2DEG; // from wiki
-//	yf = (0.5*Math.PI - Math.acos(t2)) * RAD2DEG // from betaflight imu.c
 
 	// yaw (z-axis rotation)
 	double t3 = +2.0 * (qw * qz + qx * qy);
