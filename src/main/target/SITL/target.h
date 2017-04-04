@@ -223,4 +223,7 @@ void FLASH_Lock(void);
 FLASH_Status FLASH_ErasePage(uint32_t Page_Address);
 FLASH_Status FLASH_ProgramWord(uint32_t addr, uint32_t Data);
 
+uint64_t micros64_real();
+uint64_t millis64_real();
+void delayMicroseconds_real(uint32_t us);
 

@@ -32,7 +32,7 @@ int main(void)
         scheduler();
         processLoopback();
 #ifdef SITL
-        delayMicroseconds(50); // max rate 20kHz
+        delayMicroseconds_real(50); // max rate 20kHz
 #endif
     }
     return 0;

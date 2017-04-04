@@ -48,6 +48,7 @@ static fdm_packet fdmPkt;
 static servo_packet pwmPkt;
 
 static struct timespec start_time;
+static double simRate = 1.0;
 static pthread_t tcpWorker, udpWorker;
 static bool workerRunning = true;
 static udpLink_t stateLink, pwmLink;
@@ -57,6 +58,18 @@ static pthread_mutex_t updateLock;
 #define ACC_SCALE (256 / 9.81)
 #define GYRO_SCALE (8192 / 2000.0)
 void updateState(const fdm_packet* pkt) {
+	static double last_timestamp = 0; // in seconds
+	static uint64_t last_realtime = 0; // in uS
+
+	const uint64_t realtime_now = micros64_real();
+	if(realtime_now > last_realtime + 500*1e3) { // 500ms timeout
+		last_timestamp = 0;
+	}
+
+	const double deltaSim = pkt->timestamp - last_timestamp;  // in seconds
+	if(deltaSim < 0) { // don't use old packet
+		return;
+	}
 
 	int16_t x,y,z;
 	x = -pkt->imu_linear_acceleration_xyz[0] * ACC_SCALE;
@@ -64,6 +77,12 @@ void updateState(const fdm_packet* pkt) {
 	z = -pkt->imu_linear_acceleration_xyz[2] * ACC_SCALE;
 	fakeAccSet(x, y, z);
 //	printf("[acc]%lf,%lf,%lf\n", pkt->imu_linear_acceleration_xyz[0], pkt->imu_linear_acceleration_xyz[1], pkt->imu_linear_acceleration_xyz[2]);
+
+	x = pkt->imu_angular_velocity_rpy[0] * GYRO_SCALE * RAD2DEG;
+	y = -pkt->imu_angular_velocity_rpy[1] * GYRO_SCALE * RAD2DEG;
+	z = -pkt->imu_angular_velocity_rpy[2] * GYRO_SCALE * RAD2DEG;
+	fakeGyroSet(x, y, z);
+//	printf("[gyr]%lf,%lf,%lf\n", pkt->imu_angular_velocity_rpy[0], pkt->imu_angular_velocity_rpy[1], pkt->imu_angular_velocity_rpy[2]);
 
 	double qw = pkt->imu_orientation_quat[0];
 	double qx = pkt->imu_orientation_quat[1];
@@ -87,21 +106,17 @@ void updateState(const fdm_packet* pkt) {
 	double t3 = +2.0 * (qw * qz + qx * qy);
 	double t4 = +1.0 - 2.0 * (ysqr + qz * qz);
 	zf = atan2(t3, t4) * RAD2DEG;
-	imuSetAttitudeRPY(xf, -yf, zf);	// yes! pitch was inverted!!
+	imuSetAttitudeRPY(xf, -yf, zf); // yes! pitch was inverted!!
 
-/*	static double gx, gy, gz;
 
-	x = (xf - gx) * GYRO_SCALE;
-	y = (yf - gy) * GYRO_SCALE;
-	z = (zf - gz) * GYRO_SCALE;
-	fakeGyroSet(x, y, z);
+	if(deltaSim < 0.02 && deltaSim > 0) { // should run faster than 50Hz
+		simRate = 0.25;//1e6 * deltaSim / (realtime_now - last_realtime);
+	}
+	last_timestamp = pkt->timestamp;
+	last_realtime = micros64_real();
+//	printf("simRate = %lf\n", simRate);
 
-	gx = xf;
-	gy = yf;
-	gz = zf;*/
-
-//	pos.x = pkt->position_xyz[0];
-//	spd.x = pkt->velocity_xyz[0];
+	pthread_mutex_unlock(&updateLock); // can send PWM output now
 }
 
 static void* udpThread(void* data) {
@@ -114,7 +129,6 @@ static void* udpThread(void* data) {
 		if(n == sizeof(fdm_packet)) {
 //			printf("[data]new fdm %d\n", n);
 			updateState(&fdmPkt);
-			pthread_mutex_unlock(&updateLock);
 		}
 	}
 
@@ -205,19 +219,34 @@ void failureMode(failureMode_e mode) {
 
 // Time part
 // Thanks ArduPilot
-uint64_t micros64() {
+uint64_t micros64_real() {
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return 1.0e6*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) -
 			(start_time.tv_sec +
 			(start_time.tv_nsec*1.0e-9)));
 }
-uint64_t millis64() {
+uint64_t millis64_real() {
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return 1.0e3*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) -
 			(start_time.tv_sec +
 			(start_time.tv_nsec*1.0e-9)));
+}
+
+uint64_t micros64() {
+	static uint64_t last_time = 0;
+	uint64_t now = micros64_real();
+	uint64_t out = last_time + ((now - last_time) * simRate);
+	last_time = out;
+	return  out;
+}
+uint64_t millis64() {
+	static uint64_t last_time = 0;
+	uint64_t now = millis64_real();
+	uint64_t out = last_time + ((now - last_time) * simRate);
+	last_time = out;
+	return  out;
 }
 
 uint32_t micros(void) {
@@ -235,6 +264,9 @@ void microsleep(uint32_t usec) {
     while (nanosleep(&ts, &ts) == -1 && errno == EINTR) ;
 }
 void delayMicroseconds(uint32_t us) {
+	microsleep(us / simRate);
+}
+void delayMicroseconds_real(uint32_t us) {
 	microsleep(us);
 }
 void delay(uint32_t ms) {
