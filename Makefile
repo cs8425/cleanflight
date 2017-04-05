@@ -558,7 +558,7 @@ SITL_SRC        := $(ROOT)/lib/main/dyad/dyad.c
 #Flags
 ARCH_FLAGS      =
 DEVICE_FLAGS    =
-LD_SCRIPT       =
+LD_SCRIPT       = src/main/target/SITL/parameter_group.ld
 STARTUP_SRC     =
 
 TARGET_FLAGS    = -D$(TARGET)
@@ -1159,30 +1159,6 @@ LDFLAGS     = -lm \
 
 #SITL compile
 ifeq ($(TARGET),$(filter $(TARGET),$(SITL_TARGETS)))
-CFLAGS      = $(ARCH_FLAGS) \
-              $(addprefix -D,$(OPTIONS)) \
-              $(addprefix -I,$(INCLUDE_DIRS)) \
-              $(DEBUG_FLAGS) \
-              -std=gnu99 \
-              -Wall -Wextra -Wunsafe-loop-optimizations -Wdouble-promotion \
-              -ffunction-sections \
-              -fdata-sections \
-              -pedantic \
-              $(DEVICE_FLAGS) \
-              -DUSE_STDPERIPH_DRIVER \
-              -D$(TARGET) \
-              $(TARGET_FLAGS) \
-              -D'__FORKNAME__="$(FORKNAME)"' \
-              -D'__TARGET__="$(TARGET)"' \
-              -D'__REVISION__="$(REVISION)"' \
-              -save-temps=obj \
-              -MMD -MP
-
-ASFLAGS     = $(ARCH_FLAGS) \
-              -x assembler-with-cpp \
-              $(addprefix -I,$(INCLUDE_DIRS)) \
-              -MMD -MP
-
 LDFLAGS     = \
               -lm \
               -lpthread \
@@ -1196,7 +1172,7 @@ LDFLAGS     = \
               -Wl,-gc-sections,-Map,$(TARGET_MAP) \
               -Wl,-L$(LINKER_DIR) \
               -Wl,--cref \
-              -T'src/main/target/SITL/parameter_group.ld'
+              -T$(LD_SCRIPT)
 endif
 
 ###############################################################################

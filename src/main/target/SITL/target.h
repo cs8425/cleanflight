@@ -17,6 +17,7 @@
 
 #pragma once
 
+// SITL (software in the loop) simulator
 #define TARGET_BOARD_IDENTIFIER "SITL"
 
 // use simulatior's attitude directly
