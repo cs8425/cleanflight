@@ -36,10 +36,14 @@
 
 #include "drivers/timer.h"
 #include "drivers/timer_def.h"
-const timerHardware_t timerHardware[USABLE_TIMER_CHANNEL_COUNT] = {};
+const timerHardware_t timerHardware[1]; // unused
 
 #include "drivers/accgyro_fake.h"
 #include "flight/imu.h"
+
+#include "config/feature.h"
+#include "fc/config.h"
+#include "fc/rc_controls.h"
 
 #include "dyad.h"
 #include "target/SITL/udplink.h"
@@ -87,6 +91,8 @@ void updateState(const fdm_packet* pkt) {
 //	printf("[gyr]%lf,%lf,%lf\n", pkt->imu_angular_velocity_rpy[0], pkt->imu_angular_velocity_rpy[1], pkt->imu_angular_velocity_rpy[2]);
 
 #if defined(SKIP_IMU_CALC)
+#if defined(SET_IMU_FROM_EULER)
+	// set from Euler
 	double qw = pkt->imu_orientation_quat[0];
 	double qx = pkt->imu_orientation_quat[1];
 	double qy = pkt->imu_orientation_quat[2];
@@ -110,6 +116,9 @@ void updateState(const fdm_packet* pkt) {
 	double t4 = +1.0 - 2.0 * (ysqr + qz * qz);
 	zf = atan2(t3, t4) * RAD2DEG;
 	imuSetAttitudeRPY(xf, -yf, zf); // yes! pitch was inverted!!
+#else
+	imuSetAttitudeQuat(pkt->imu_orientation_quat[0], pkt->imu_orientation_quat[1], pkt->imu_orientation_quat[2], pkt->imu_orientation_quat[3]);
+#endif
 #endif
 
 	if(last_realtime != 0 && deltaSim < 0.02 && deltaSim > 0) { // should run faster than 50Hz
@@ -286,9 +295,9 @@ static pwmOutputPort_t motors[MAX_SUPPORTED_MOTORS];
 static pwmOutputPort_t servos[MAX_SUPPORTED_SERVOS];
 
 // real value to send
-static uint16_t motorsPwm[MAX_SUPPORTED_MOTORS];
-static uint16_t servosPwm[MAX_SUPPORTED_SERVOS];
-static uint16_t idlePulse;
+static int16_t motorsPwm[MAX_SUPPORTED_MOTORS];
+static int16_t servosPwm[MAX_SUPPORTED_SERVOS];
+static int16_t idlePulse;
 
 void motorDevInit(const motorDevConfig_t *motorConfig, uint16_t _idlePulse, uint8_t motorCount) {
 	UNUSED(motorConfig);
@@ -324,11 +333,17 @@ void pwmShutdownPulsesForAllMotors(uint8_t motorCount) {
 void pwmCompleteMotorUpdate(uint8_t motorCount) {
 	UNUSED(motorCount);
 	// send to simulator
-	// for gazebo8 ArduCopterPlugin remap, range = [0.0, 1.0]
-	pwmPkt.motor_speed[3] = motorsPwm[0] / 1000.0f;
-	pwmPkt.motor_speed[0] = motorsPwm[1] / 1000.0f;
-	pwmPkt.motor_speed[1] = motorsPwm[2] / 1000.0f;
-	pwmPkt.motor_speed[2] = motorsPwm[3] / 1000.0f;
+	// for gazebo8 ArduCopterPlugin remap, normal range = [0.0, 1.0], 3D rang = [-1.0, 1.0]
+
+	double outScale = 1000.0;
+	if (feature(FEATURE_3D) && !IS_RC_MODE_ACTIVE(BOX3DDISABLESWITCH)) {
+		outScale = 500.0;
+	}
+
+	pwmPkt.motor_speed[3] = motorsPwm[0] / outScale;
+	pwmPkt.motor_speed[0] = motorsPwm[1] / outScale;
+	pwmPkt.motor_speed[1] = motorsPwm[2] / outScale;
+	pwmPkt.motor_speed[2] = motorsPwm[3] / outScale;
 
 	// get one "fdm_packet" can only send one "servo_packet"!!
 	if(pthread_mutex_trylock(&updateLock) != 0) return;
@@ -351,6 +366,7 @@ char _Min_Stack_Size;
 
 // fake EEPROM
 extern uint8_t __config_start;
+extern uint8_t __config_end;
 extern uint32_t __FLASH_CONFIG_Size;
 static FILE *eepromFd = NULL;
 const char *EEPROM_FILE = EEPROM_FILENAME;
@@ -374,8 +390,8 @@ void FLASH_Unlock(void) {
 		lSize = ftell(eepromFd);
 		rewind(eepromFd);
 
-		printf("[FLASH_Unlock]size = %ld\n", lSize);
-		for(unsigned int i=0; i<((uintptr_t)&__FLASH_CONFIG_Size); i++){
+		printf("[FLASH_Unlock]size = %ld, %ld\n", lSize, (uintptr_t)(&__config_end - &__config_start));
+		for(unsigned int i=0; i<(uintptr_t)(&__config_end - &__config_start); i++){
 			c = fgetc(eepromFd);
 			if(c == EOF) break;
 			eeprom[i] = (uint8_t)c;
@@ -403,8 +419,12 @@ FLASH_Status FLASH_ErasePage(uint32_t Page_Address) {
 	return FLASH_COMPLETE;
 }
 FLASH_Status FLASH_ProgramWord(uint32_t addr, uint32_t Data) {
-	*((uint32_t*)(uintptr_t)addr) = Data;
-//	printf("[FLASH_ProgramWord]0x%x = %x\n", addr, *((uint32_t*)(uintptr_t)addr));
+	if((addr >= (uintptr_t)&__config_start)&&(addr < (uintptr_t)&__config_end)) {
+		*((uint32_t*)(uintptr_t)addr) = Data;
+//		printf("[FLASH_ProgramWord]0x%x = %x\n", addr, *((uint32_t*)(uintptr_t)addr));
+	}else{
+		printf("[FLASH_ProgramWord]Out of Range!! 0x%x = %x\n", addr, *((uint32_t*)(uintptr_t)addr));
+	}
 	return FLASH_COMPLETE;
 }
 
