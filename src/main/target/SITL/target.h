@@ -22,9 +22,12 @@
 // use simulatior's attitude directly
 #define SKIP_IMU_CALC
 
-//#define USBD_PRODUCT_STRING "SITL"
+// file name to save config
+#define EEPROM_FILENAME "eeprom.bin"
 
-#define FLASH_SIZE 2048
+#define U_ID_0 0
+#define U_ID_1 1
+#define U_ID_2 2
 
 #define ACC
 #define USE_FAKE_ACC
@@ -56,6 +59,8 @@
 
 #define DEFAULT_RX_FEATURE      FEATURE_RX_MSP
 #define DEFAULT_FEATURES        (FEATURE_GPS | FEATURE_TELEMETRY)
+
+#define USE_PARAMETER_GROUPS
 
 #undef STACK_CHECK // I think SITL don't need this
 #undef USE_DASHBOARD
@@ -92,6 +97,8 @@
 #undef USE_I2C
 #undef USE_SPI
 
+#define FLASH_SIZE 2048
+
 # define DEFIO_PORT_USED_COUNT 0
 # define DEFIO_PORT_USED_LIST /* empty */
 # define DEFIO_PORT_OFFSET_LIST /* empty */
@@ -104,20 +111,13 @@
 #define TARGET_IO_PORTB         0xffff
 #define TARGET_IO_PORTC         0xffff
 
-#define USE_PARAMETER_GROUPS
-
-#define U_ID_0 0
-#define U_ID_1 1
-#define U_ID_2 2
-
 #define WS2811_DMA_TC_FLAG (void *)1
 #define WS2811_DMA_HANDLER_IDENTIFER 0
 
+
+// belows are internal stuff
 #include <stdint.h>
 #include <stddef.h>
-//#include <stdbool.h>
-//#include "drivers/bus_i2c.h"
-//typedef uint8_t ioTag_t;
 
 uint32_t SystemCoreClock;
 

@@ -19,7 +19,7 @@
 
 #include <netinet/in.h>
 #include <pthread.h>
-#include "target/SITL/dyad/dyad.h"
+#include "dyad.h"
 // Since serial ports can be used for any function these buffer sizes should be equal
 // The two largest things that need to be sent are: 1, MSP responses, 2, UBLOX SVINFO packet.
 

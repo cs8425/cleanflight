@@ -5,6 +5,5 @@ TARGET_SRC = \
             drivers/accgyro_fake.c \
             drivers/barometer_fake.c \
             drivers/compass_fake.c \
-            drivers/serial_tcp.c \
-            target/SITL/dyad/dyad.c
+            drivers/serial_tcp.c
 

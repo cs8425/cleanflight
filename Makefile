@@ -550,6 +550,11 @@ TARGET_FLAGS    = -D$(TARGET)
 # Start SITL targets
 else ifeq ($(TARGET),$(filter $(TARGET), $(SITL_TARGETS)))
 
+INCLUDE_DIRS    := $(INCLUDE_DIRS) \
+                   $(ROOT)/lib/main/dyad
+
+SITL_SRC        := $(ROOT)/lib/main/dyad/dyad.c
+
 #Flags
 ARCH_FLAGS      =
 DEVICE_FLAGS    =
@@ -990,7 +995,7 @@ SRC := $(STARTUP_SRC) $(STM32F30x_COMMON_SRC) $(TARGET_SRC) $(VARIANT_SRC)
 else ifeq ($(TARGET),$(filter $(TARGET),$(F1_TARGETS)))
 SRC := $(STARTUP_SRC) $(STM32F10x_COMMON_SRC) $(TARGET_SRC) $(VARIANT_SRC)
 else ifeq ($(TARGET),$(filter $(TARGET),$(SITL_TARGETS)))
-SRC := $(TARGET_SRC) $(VARIANT_SRC)
+SRC := $(TARGET_SRC) $(SITL_SRC) $(VARIANT_SRC)
 endif
 
 ifneq ($(filter $(TARGET),$(F4_TARGETS) $(F7_TARGETS)),)
@@ -1079,14 +1084,14 @@ OPTIMISE_DEFAULT    := -Os
 LTO_FLAGS           := $(OPTIMISATION_BASE) $(OPTIMISE_DEFAULT)
 
 else ifeq ($(TARGET),$(filter $(TARGET),$(F3_TARGETS)))
-OPTIMISE_DEFAULT    := -Ofast
+OPTIMISE_DEFAULT    := -O2
 OPTIMISE_SPEED      := -Ofast
 OPTIMISE_SIZE       := -Os
 
 LTO_FLAGS           := $(OPTIMISATION_BASE) $(OPTIMISE_SPEED)
 
 else ifeq ($(TARGET),$(filter $(TARGET),$(SITL_TARGETS)))
-OPTIMISE_DEFAULT    := -Os
+OPTIMISE_DEFAULT    := -Ofast
 OPTIMISE_SPEED      := -Ofast
 OPTIMISE_SIZE       := -Os
 

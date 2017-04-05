@@ -41,7 +41,7 @@ const timerHardware_t timerHardware[USABLE_TIMER_CHANNEL_COUNT] = {};
 #include "drivers/accgyro_fake.h"
 #include "flight/imu.h"
 
-#include "target/SITL/dyad/dyad.h"
+#include "dyad.h"
 #include "target/SITL/udplink.h"
 
 static fdm_packet fdmPkt;
@@ -69,6 +69,7 @@ void updateState(const fdm_packet* pkt) {
 
 	const double deltaSim = pkt->timestamp - last_timestamp;  // in seconds
 	if(deltaSim < 0) { // don't use old packet
+		pthread_mutex_unlock(&updateLock);
 		return;
 	}
 
@@ -160,7 +161,7 @@ void systemInit(void) {
 	clock_gettime(CLOCK_MONOTONIC, &start_time);
 	printf("[system]Init...\n");
 
-	SystemCoreClock = 500 * 1e6;
+	SystemCoreClock = 500 * 1e6; // fake 500MHz
 	FLASH_Unlock();
 
 	if (pthread_mutex_init(&updateLock, NULL) != 0) {
@@ -329,7 +330,7 @@ void pwmCompleteMotorUpdate(uint8_t motorCount) {
 	pwmPkt.motor_speed[1] = motorsPwm[2] / 1000.0f;
 	pwmPkt.motor_speed[2] = motorsPwm[3] / 1000.0f;
 
-
+	// get one "fdm_packet" can only send one "servo_packet"!!
 	if(pthread_mutex_trylock(&updateLock) != 0) return;
 	udpSend(&pwmLink, &pwmPkt, sizeof(servo_packet));
 //	printf("[pwm]%u:%u,%u,%u,%u\n", idlePulse, motorsPwm[0], motorsPwm[1], motorsPwm[2], motorsPwm[3]);
@@ -352,7 +353,7 @@ char _Min_Stack_Size;
 extern uint8_t __config_start;
 extern uint32_t __FLASH_CONFIG_Size;
 static FILE *eepromFd = NULL;
-const char *EEPROM_FILE = "eeprom.bin";
+const char *EEPROM_FILE = EEPROM_FILENAME;
 
 void FLASH_Unlock(void) {
 	uint8_t * const eeprom = &__config_start;
