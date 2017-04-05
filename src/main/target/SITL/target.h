@@ -220,7 +220,7 @@ typedef struct {
 	double position_xyz[3];
 } fdm_packet;
 typedef struct {
-	float motor_speed[4];	// [0.0, 1.0]
+	float motor_speed[4];	// normal: [0.0, 1.0], 3D: [-1.0, 1.0]
 } servo_packet;
 
 void FLASH_Unlock(void);

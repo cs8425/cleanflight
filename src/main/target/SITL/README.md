@@ -1,9 +1,9 @@
 ## SITL in gazebo 8 with ArduCopterPlugin
 SITL (software in the loop) simulator allows you to run betaflight/cleanflight without any hardware.
-Currently only tested on Ubuntu 16.04, gcc (Ubuntu 5.4.0-6ubuntu1~16.04.4) 5.4.0 20160609.
+Currently only tested on Ubuntu 16.04, x86_64, gcc (Ubuntu 5.4.0-6ubuntu1~16.04.4) 5.4.0 20160609.
 
 ### install gazebo 8
-see here: [Installation](http://gazebosim.org/tutorials?cat=install]
+see here: [Installation](http://gazebosim.org/tutorials?cat=install)
 
 ### copy & modify world
 for Ubunutu 16.04:
