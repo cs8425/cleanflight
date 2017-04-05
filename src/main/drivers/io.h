@@ -88,7 +88,7 @@
 # define IOCFG_IPU            0
 # define IOCFG_IN_FLOATING    0
 
-#elif defined(SITL)
+#elif defined(SIMULATOR_BUILD)
 
 # define IOCFG_OUT_PP         0
 # define IOCFG_OUT_OD         0

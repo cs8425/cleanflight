@@ -26,6 +26,8 @@
 // file name to save config
 #define EEPROM_FILENAME "eeprom.bin"
 
+#define SIMULATOR_BUILD
+
 #define U_ID_0 0
 #define U_ID_1 1
 #define U_ID_2 2

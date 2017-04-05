@@ -74,7 +74,7 @@ int16_t calculateThrottleAngleCorrection(uint8_t throttle_correction_value);
 void imuResetAccelerationSum(void);
 void imuInit(void);
 
-#ifdef SITL
+#ifdef SIMULATOR_BUILD
 void imuSetAttitudeRPY(float roll, float pitch, float yaw);  // in deg
 void imuSetAttitudeQuat(float w, float x, float y, float z);
 #endif

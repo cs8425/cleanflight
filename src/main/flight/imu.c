@@ -395,7 +395,7 @@ static void imuCalculateEstimatedAttitude(timeUs_t currentTimeUs)
     }
 #endif
 
-#if defined(SITL) && defined(SKIP_IMU_CALC)
+#if defined(SIMULATOR_BUILD) && defined(SKIP_IMU_CALC)
 	UNUSED(imuMahonyAHRSupdate);
 	UNUSED(useAcc);
 	UNUSED(useMag);
@@ -445,7 +445,7 @@ int16_t calculateThrottleAngleCorrection(uint8_t throttle_correction_value)
     return lrintf(throttle_correction_value * sin_approx(angle / (900.0f * M_PIf / 2.0f)));
 }
 
-#ifdef SITL
+#ifdef SIMULATOR_BUILD
 void imuSetAttitudeRPY(float roll, float pitch, float yaw)
 {
     attitude.values.roll = roll * 10;
