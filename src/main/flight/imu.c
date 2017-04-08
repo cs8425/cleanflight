@@ -321,10 +321,7 @@ static void imuMahonyAHRSupdate(float dt, float gx, float gy, float gz,
     // Compute and apply integral feedback if enabled
     if(imuRuntimeConfig.dcm_ki > 0.0f) {
         // Stop integrating if spinning beyond the certain limit
-        if (spin_rate < DEGREES_TO_RADIANS(SPIN_RATE_LIMIT)
-#if defined(SIMULATOR_BUILD)
-        || true ) {
-#endif
+        if (spin_rate < DEGREES_TO_RADIANS(SPIN_RATE_LIMIT)) {
             const float dcmKiGain = imuRuntimeConfig.dcm_ki;
             integralFBx += dcmKiGain * ex * dt;    // integral error scaled by Ki
             integralFBy += dcmKiGain * ey * dt;
@@ -464,7 +461,7 @@ void imuUpdateAttitude(timeUs_t currentTimeUs)
             IMU_UNLOCK;
             return;
         }
-        imuUpdated = true;
+        imuUpdated = false;
 #endif
         imuCalculateEstimatedAttitude(currentTimeUs);
         IMU_UNLOCK;

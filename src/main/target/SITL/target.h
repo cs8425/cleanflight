@@ -24,10 +24,11 @@
 #define SIMULATOR_MULTITHREAD
 
 // use simulatior's attitude directly
-//#define SKIP_IMU_CALC
+// disable this if wants to test AHRS algorithm
+#define SKIP_IMU_CALC
 
-#define SIMULATOR_ACC_SYNC
-#define SIMULATOR_GYRO_SYNC
+//#define SIMULATOR_ACC_SYNC
+//#define SIMULATOR_GYRO_SYNC
 //#define SIMULATOR_IMU_SYNC
 //#define SIMULATOR_GYROPID_SYNC
 
@@ -225,11 +226,11 @@ typedef enum
 
 typedef struct {
 	double timestamp;	// in seconds
-	double imu_angular_velocity_rpy[3];	// range: +/- 8192; +/- 2000 deg/se
-	double imu_linear_acceleration_xyz[3];	// sim 1G = 9.81 -> FC 1G = 256
-	double imu_orientation_quat[4];
-	double velocity_xyz[3];
-	double position_xyz[3];
+	double imu_angular_velocity_rpy[3];	// rad/s -> range: +/- 8192; +/- 2000 deg/se
+	double imu_linear_acceleration_xyz[3];	// m/s/s NED, body frame -> sim 1G = 9.80665, FC 1G = 256
+	double imu_orientation_quat[4];	//w, x, y, z
+	double velocity_xyz[3];	// m/s, earth frame
+	double position_xyz[3];	// meters, NED from origin
 } fdm_packet;
 typedef struct {
 	float motor_speed[4];	// normal: [0.0, 1.0], 3D: [-1.0, 1.0]

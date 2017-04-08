@@ -68,8 +68,8 @@ int lockMainPID(void) {
 }
 
 #define RAD2DEG (180.0 / M_PI)
-#define ACC_SCALE (256 / 9.81)
-#define GYRO_SCALE (8192 / 2000.0)
+#define ACC_SCALE (256 / 9.80665)
+#define GYRO_SCALE (16.4)
 void sendMotorUpdate() {
 	udpSend(&pwmLink, &pwmPkt, sizeof(servo_packet));
 }
@@ -82,7 +82,7 @@ void updateState(const fdm_packet* pkt) {
 	clock_gettime(CLOCK_MONOTONIC, &now_ts);
 
 	const uint64_t realtime_now = micros64_real();
-	if(realtime_now > last_realtime + 100*1e3) { // 100ms timeout
+	if(realtime_now > last_realtime + 500*1e3) { // 500ms timeout
 		last_timestamp = pkt->timestamp;
 		last_realtime = realtime_now;
 		sendMotorUpdate();
@@ -90,10 +90,9 @@ void updateState(const fdm_packet* pkt) {
 	}
 
 	const double deltaSim = pkt->timestamp - last_timestamp;  // in seconds
-/*	if(deltaSim < 0) { // don't use old packet
-		pthread_mutex_unlock(&updateLock);
+	if(deltaSim < 0) { // don't use old packet
 		return;
-	}*/
+	}
 
 	int16_t x,y,z;
 	x = -pkt->imu_linear_acceleration_xyz[0] * ACC_SCALE;
@@ -141,11 +140,12 @@ void updateState(const fdm_packet* pkt) {
 
 #if defined(SIMULATOR_IMU_SYNC)
 	imuSetHasNewData(deltaSim*1e6);
+	imuUpdateAttitude(micros());
 #endif
+
 
 	if(deltaSim < 0.02 && deltaSim > 0) { // simulator should run faster than 50Hz
 //		simRate = simRate * 0.5 + (1e6 * deltaSim / (realtime_now - last_realtime)) * 0.5;
-//		simRate = 1e6 * deltaSim / (realtime_now - last_realtime);
 		struct timespec out_ts;
 		timeval_sub(&out_ts, &now_ts, &last_ts);
 		simRate = deltaSim / (out_ts.tv_sec + 1e-9*out_ts.tv_nsec);
