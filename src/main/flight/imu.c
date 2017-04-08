@@ -437,7 +437,7 @@ static void imuCalculateEstimatedAttitude(timeUs_t currentTimeUs)
 #else
 
 #if defined(SIMULATOR_BUILD) && defined(SIMULATOR_IMU_SYNC)
-	printf("[imu]deltaT = %u, imuDeltaT = %u, currentTimeUs = %u, micros64_real = %lu\n", deltaT, imuDeltaT, currentTimeUs, micros64_real());
+//	printf("[imu]deltaT = %u, imuDeltaT = %u, currentTimeUs = %u, micros64_real = %lu\n", deltaT, imuDeltaT, currentTimeUs, micros64_real());
 	deltaT = imuDeltaT;
 #endif
 

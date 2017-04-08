@@ -61,7 +61,6 @@ static pthread_mutex_t updateLock;
 static pthread_mutex_t mainLoopLock;
 
 int timeval_sub(struct timespec *result, struct timespec *x, struct timespec *y);
-int timeval_add(struct timespec *result, struct timespec *x, struct timespec *y);
 
 int lockMainPID(void) {
 	return pthread_mutex_trylock(&mainLoopLock);
@@ -150,7 +149,7 @@ void updateState(const fdm_packet* pkt) {
 		timeval_sub(&out_ts, &now_ts, &last_ts);
 		simRate = deltaSim / (out_ts.tv_sec + 1e-9*out_ts.tv_nsec);
 	}
-	printf("simRate = %lf, millis64 = %lu, millis64_real = %lu, deltaSim = %lf\n", simRate, millis64(), millis64_real(), deltaSim*1e6);
+//	printf("simRate = %lf, millis64 = %lu, millis64_real = %lu, deltaSim = %lf\n", simRate, millis64(), millis64_real(), deltaSim*1e6);
 
 	last_timestamp = pkt->timestamp;
 	last_realtime = micros64_real();
@@ -343,26 +342,6 @@ void delay(uint32_t ms) {
 // Return 1 if the difference is negative, otherwise 0.
 // result = x - y
 // from: http://www.gnu.org/software/libc/manual/html_node/Elapsed-Time.html
-int timeval_sub2(struct timespec *result, struct timespec *x, struct timespec *y) {
-	// Perform the carry for the later subtraction by updating y.
-	if (x->tv_nsec < y->tv_nsec) {
-		int nsec = (y->tv_nsec - x->tv_nsec) / 1000000000 + 1;
-		y->tv_nsec -= 1000000000 * nsec;
-		y->tv_sec += nsec;
-	}
-	if (x->tv_nsec - y->tv_nsec > 1000000000) {
-		int nsec = (x->tv_nsec - y->tv_nsec) / 1000000000;
-		y->tv_nsec += 1000000000 * nsec;
-		y->tv_sec -= nsec;
-	}
-
-	// Compute the time remaining to wait. tv_usec is certainly positive.
-	result->tv_sec = x->tv_sec - y->tv_sec;
-	result->tv_nsec = x->tv_nsec - y->tv_nsec;
-
-	// Return 1 if result is negative.
-	return x->tv_sec < y->tv_sec;
-}
 int timeval_sub(struct timespec *result, struct timespec *x, struct timespec *y) {
 	unsigned int s_carry = 0;
 	unsigned int ns_carry = 0;
@@ -378,18 +357,6 @@ int timeval_sub(struct timespec *result, struct timespec *x, struct timespec *y)
 	result->tv_nsec = x->tv_nsec - y->tv_nsec + ns_carry;
 
 	// Return 1 if result is negative.
-	return x->tv_sec < y->tv_sec;
-}
-int timeval_add(struct timespec *result, struct timespec *x, struct timespec *y) {
-	result->tv_sec = x->tv_sec - y->tv_sec;
-	result->tv_nsec = x->tv_nsec - y->tv_nsec;
-
-	if(result->tv_nsec > 1000000000){
-		int nsec = result->tv_nsec / 1000000000 + 1;
-		result->tv_nsec -= 1000000000 * nsec;
-		result->tv_sec += nsec;
-	}
-
 	return x->tv_sec < y->tv_sec;
 }
 
