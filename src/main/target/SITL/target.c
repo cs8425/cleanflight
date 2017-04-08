@@ -44,6 +44,7 @@ const timerHardware_t timerHardware[1]; // unused
 #include "config/feature.h"
 #include "fc/config.h"
 #include "fc/rc_controls.h"
+#include "scheduler/scheduler.h"
 
 #include "dyad.h"
 #include "target/SITL/udplink.h"
@@ -57,25 +58,42 @@ static pthread_t tcpWorker, udpWorker;
 static bool workerRunning = true;
 static udpLink_t stateLink, pwmLink;
 static pthread_mutex_t updateLock;
+static pthread_mutex_t mainLoopLock;
+
+int timeval_sub(struct timespec *result, struct timespec *x, struct timespec *y);
+int timeval_add(struct timespec *result, struct timespec *x, struct timespec *y);
+
+int lockMainPID(void) {
+	return pthread_mutex_trylock(&mainLoopLock);
+}
 
 #define RAD2DEG (180.0 / M_PI)
 #define ACC_SCALE (256 / 9.81)
 #define GYRO_SCALE (8192 / 2000.0)
+void sendMotorUpdate() {
+	udpSend(&pwmLink, &pwmPkt, sizeof(servo_packet));
+}
 void updateState(const fdm_packet* pkt) {
 	static double last_timestamp = 0; // in seconds
 	static uint64_t last_realtime = 0; // in uS
+	static struct timespec last_ts; // last packet
+
+	struct timespec now_ts;
+	clock_gettime(CLOCK_MONOTONIC, &now_ts);
 
 	const uint64_t realtime_now = micros64_real();
-	if(realtime_now > last_realtime + 500*1e3) { // 500ms timeout
-		last_timestamp = 0;
-		last_realtime = 0;
+	if(realtime_now > last_realtime + 100*1e3) { // 100ms timeout
+		last_timestamp = pkt->timestamp;
+		last_realtime = realtime_now;
+		sendMotorUpdate();
+		return;
 	}
 
 	const double deltaSim = pkt->timestamp - last_timestamp;  // in seconds
-	if(deltaSim < 0) { // don't use old packet
+/*	if(deltaSim < 0) { // don't use old packet
 		pthread_mutex_unlock(&updateLock);
 		return;
-	}
+	}*/
 
 	int16_t x,y,z;
 	x = -pkt->imu_linear_acceleration_xyz[0] * ACC_SCALE;
@@ -121,14 +139,30 @@ void updateState(const fdm_packet* pkt) {
 #endif
 #endif
 
-	if(last_realtime != 0 && deltaSim < 0.02 && deltaSim > 0) { // should run faster than 50Hz
-		simRate = simRate * 0.99 + (1e6 * deltaSim / (realtime_now - last_realtime)) * 0.01;
+#if defined(SIMULATOR_IMU_SYNC)
+	imuSetHasNewData(deltaSim*1e6);
+#endif
+
+	if(deltaSim < 0.02 && deltaSim > 0) { // simulator should run faster than 50Hz
+//		simRate = simRate * 0.5 + (1e6 * deltaSim / (realtime_now - last_realtime)) * 0.5;
+//		simRate = 1e6 * deltaSim / (realtime_now - last_realtime);
+		struct timespec out_ts;
+		timeval_sub(&out_ts, &now_ts, &last_ts);
+		simRate = deltaSim / (out_ts.tv_sec + 1e-9*out_ts.tv_nsec);
 	}
+	printf("simRate = %lf, millis64 = %lu, millis64_real = %lu, deltaSim = %lf\n", simRate, millis64(), millis64_real(), deltaSim*1e6);
+
 	last_timestamp = pkt->timestamp;
 	last_realtime = micros64_real();
-//	printf("simRate = %lf\n", simRate);
+
+	last_ts.tv_sec = now_ts.tv_sec;
+	last_ts.tv_nsec = now_ts.tv_nsec;
 
 	pthread_mutex_unlock(&updateLock); // can send PWM output now
+
+#if defined(SIMULATOR_GYROPID_SYNC)
+	pthread_mutex_unlock(&mainLoopLock); // can run main loop
+#endif
 }
 
 static void* udpThread(void* data) {
@@ -178,6 +212,11 @@ void systemInit(void) {
 		exit(1);
 	}
 
+	if (pthread_mutex_init(&mainLoopLock, NULL) != 0) {
+		printf("Create mainLoopLock error!\n");
+		exit(1);
+	}
+
 	ret = pthread_create(&tcpWorker, NULL, tcpThread, NULL);
 	if(ret != 0) {
 		printf("Create tcpWorker error!\n");
@@ -195,6 +234,9 @@ void systemInit(void) {
 		printf("Create udpWorker error!\n");
 		exit(1);
 	}
+
+	// serial can't been slow down
+	rescheduleTask(TASK_SERIAL, 1);
 }
 
 void systemReset(void){
@@ -230,34 +272,43 @@ void failureMode(failureMode_e mode) {
 
 // Time part
 // Thanks ArduPilot
+uint64_t nanos64_real() {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (ts.tv_sec*1e9 + ts.tv_nsec) - (start_time.tv_sec*1e9 + start_time.tv_nsec);
+}
 uint64_t micros64_real() {
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return 1.0e6*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) -
-			(start_time.tv_sec +
-			(start_time.tv_nsec*1.0e-9)));
+	return 1.0e6*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) - (start_time.tv_sec + (start_time.tv_nsec*1.0e-9)));
 }
 uint64_t millis64_real() {
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return 1.0e3*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) -
-			(start_time.tv_sec +
-			(start_time.tv_nsec*1.0e-9)));
+	return 1.0e3*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) - (start_time.tv_sec + (start_time.tv_nsec*1.0e-9)));
 }
 
 uint64_t micros64() {
-	static uint64_t last_time = 0;
-	uint64_t now = micros64_real();
-	uint64_t out = last_time + ((now - last_time) * simRate);
-	last_time = out;
-	return  out;
+	static uint64_t last = 0;
+	static uint64_t out = 0;
+	uint64_t now = nanos64_real();
+
+	out += (now - last) * simRate;
+	last = now;
+
+	return out*1e-3;
+//	return micros64_real();
 }
 uint64_t millis64() {
-	static uint64_t last_time = 0;
-	uint64_t now = millis64_real();
-	uint64_t out = last_time + ((now - last_time) * simRate);
-	last_time = out;
-	return  out;
+	static uint64_t last = 0;
+	static uint64_t out = 0;
+	uint64_t now = nanos64_real();
+
+	out += (now - last) * simRate;
+	last = now;
+
+	return out*1e-6;
+//	return millis64_real();
 }
 
 uint32_t micros(void) {
@@ -286,6 +337,60 @@ void delay(uint32_t ms) {
 	while ((millis64() - start) < ms) {
 		microsleep(1000);
 	}
+}
+
+// Subtract the ‘struct timespec’ values X and Y,  storing the result in RESULT.
+// Return 1 if the difference is negative, otherwise 0.
+// result = x - y
+// from: http://www.gnu.org/software/libc/manual/html_node/Elapsed-Time.html
+int timeval_sub2(struct timespec *result, struct timespec *x, struct timespec *y) {
+	// Perform the carry for the later subtraction by updating y.
+	if (x->tv_nsec < y->tv_nsec) {
+		int nsec = (y->tv_nsec - x->tv_nsec) / 1000000000 + 1;
+		y->tv_nsec -= 1000000000 * nsec;
+		y->tv_sec += nsec;
+	}
+	if (x->tv_nsec - y->tv_nsec > 1000000000) {
+		int nsec = (x->tv_nsec - y->tv_nsec) / 1000000000;
+		y->tv_nsec += 1000000000 * nsec;
+		y->tv_sec -= nsec;
+	}
+
+	// Compute the time remaining to wait. tv_usec is certainly positive.
+	result->tv_sec = x->tv_sec - y->tv_sec;
+	result->tv_nsec = x->tv_nsec - y->tv_nsec;
+
+	// Return 1 if result is negative.
+	return x->tv_sec < y->tv_sec;
+}
+int timeval_sub(struct timespec *result, struct timespec *x, struct timespec *y) {
+	unsigned int s_carry = 0;
+	unsigned int ns_carry = 0;
+	// Perform the carry for the later subtraction by updating y.
+	if (x->tv_nsec < y->tv_nsec) {
+		int nsec = (y->tv_nsec - x->tv_nsec) / 1000000000 + 1;
+		ns_carry += 1000000000 * nsec;
+		s_carry += nsec;
+	}
+
+	// Compute the time remaining to wait. tv_usec is certainly positive.
+	result->tv_sec = x->tv_sec - y->tv_sec - s_carry;
+	result->tv_nsec = x->tv_nsec - y->tv_nsec + ns_carry;
+
+	// Return 1 if result is negative.
+	return x->tv_sec < y->tv_sec;
+}
+int timeval_add(struct timespec *result, struct timespec *x, struct timespec *y) {
+	result->tv_sec = x->tv_sec - y->tv_sec;
+	result->tv_nsec = x->tv_nsec - y->tv_nsec;
+
+	if(result->tv_nsec > 1000000000){
+		int nsec = result->tv_nsec / 1000000000 + 1;
+		result->tv_nsec -= 1000000000 * nsec;
+		result->tv_sec += nsec;
+	}
+
+	return x->tv_sec < y->tv_sec;
 }
 
 

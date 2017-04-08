@@ -20,17 +20,29 @@
 // SITL (software in the loop) simulator
 #define TARGET_BOARD_IDENTIFIER "SITL"
 
+#define SIMULATOR_BUILD
+#define SIMULATOR_MULTITHREAD
+
 // use simulatior's attitude directly
-#define SKIP_IMU_CALC
+//#define SKIP_IMU_CALC
+
+#define SIMULATOR_ACC_SYNC
+#define SIMULATOR_GYRO_SYNC
+//#define SIMULATOR_IMU_SYNC
+//#define SIMULATOR_GYROPID_SYNC
 
 // file name to save config
 #define EEPROM_FILENAME "eeprom.bin"
 
-#define SIMULATOR_BUILD
-
 #define U_ID_0 0
 #define U_ID_1 1
 #define U_ID_2 2
+
+#undef TASK_GYROPID_DESIRED_PERIOD
+#define TASK_GYROPID_DESIRED_PERIOD     100
+
+#undef SCHEDULER_DELAY_LIMIT
+#define SCHEDULER_DELAY_LIMIT           1
 
 #define ACC
 #define USE_FAKE_ACC
@@ -228,7 +240,12 @@ void FLASH_Lock(void);
 FLASH_Status FLASH_ErasePage(uint32_t Page_Address);
 FLASH_Status FLASH_ProgramWord(uint32_t addr, uint32_t Data);
 
+uint64_t nanos64_real();
 uint64_t micros64_real();
 uint64_t millis64_real();
 void delayMicroseconds_real(uint32_t us);
+uint64_t micros64();
+uint64_t millis64();
+
+int lockMainPID(void);
 

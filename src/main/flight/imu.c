@@ -49,6 +49,28 @@
 #include "sensors/sensors.h"
 #include "sensors/sonar.h"
 
+#if defined(SIMULATOR_BUILD) && defined(SIMULATOR_MULTITHREAD)
+#include <stdio.h>
+#include <pthread.h>
+#define printf printf
+#define sprintf sprintf
+
+static pthread_mutex_t imuUpdateLock;
+
+#if defined(SIMULATOR_IMU_SYNC)
+static uint32_t imuDeltaT = 0;
+static bool imuUpdated = false;
+#endif
+
+#define IMU_LOCK pthread_mutex_unlock(&imuUpdateLock)
+#define IMU_UNLOCK pthread_mutex_unlock(&imuUpdateLock)
+
+#else
+
+#define IMU_LOCK
+#define IMU_UNLOCK
+
+#endif
 
 // the limit (in degrees/second) beyond which we stop integrating
 // omega_I. At larger spin rates the DCM PI controller can get 'dizzy'
@@ -147,6 +169,12 @@ void imuInit(void)
     accVelScale = 9.80665f / acc.dev.acc_1G / 10000.0f;
 
     imuComputeRotationMatrix();
+
+#if defined(SIMULATOR_BUILD) && defined(SIMULATOR_MULTITHREAD)
+    if (pthread_mutex_init(&imuUpdateLock, NULL) != 0) {
+        printf("Create imuUpdateLock error!\n");
+    }
+#endif
 }
 
 void imuResetAccelerationSum(void)
@@ -293,7 +321,10 @@ static void imuMahonyAHRSupdate(float dt, float gx, float gy, float gz,
     // Compute and apply integral feedback if enabled
     if(imuRuntimeConfig.dcm_ki > 0.0f) {
         // Stop integrating if spinning beyond the certain limit
-        if (spin_rate < DEGREES_TO_RADIANS(SPIN_RATE_LIMIT)) {
+        if (spin_rate < DEGREES_TO_RADIANS(SPIN_RATE_LIMIT)
+#if defined(SIMULATOR_BUILD)
+        || true ) {
+#endif
             const float dcmKiGain = imuRuntimeConfig.dcm_ki;
             integralFBx += dcmKiGain * ex * dt;    // integral error scaled by Ki
             integralFBy += dcmKiGain * ey * dt;
@@ -407,6 +438,12 @@ static void imuCalculateEstimatedAttitude(timeUs_t currentTimeUs)
 	UNUSED(useYaw);
 	UNUSED(rawYawError);
 #else
+
+#if defined(SIMULATOR_BUILD) && defined(SIMULATOR_IMU_SYNC)
+	printf("[imu]deltaT = %u, imuDeltaT = %u, currentTimeUs = %u, micros64_real = %lu\n", deltaT, imuDeltaT, currentTimeUs, micros64_real());
+	deltaT = imuDeltaT;
+#endif
+
     imuMahonyAHRSupdate(deltaT * 1e-6f,
                         DEGREES_TO_RADIANS(gyro.gyroADCf[X]), DEGREES_TO_RADIANS(gyro.gyroADCf[Y]), DEGREES_TO_RADIANS(gyro.gyroADCf[Z]),
                         useAcc, acc.accSmooth[X], acc.accSmooth[Y], acc.accSmooth[Z],
@@ -421,7 +458,16 @@ static void imuCalculateEstimatedAttitude(timeUs_t currentTimeUs)
 void imuUpdateAttitude(timeUs_t currentTimeUs)
 {
     if (sensors(SENSOR_ACC) && acc.isAccelUpdatedAtLeastOnce) {
+        IMU_LOCK;
+#if defined(SIMULATOR_BUILD) && defined(SIMULATOR_IMU_SYNC)
+        if(imuUpdated == false){
+            IMU_UNLOCK;
+            return;
+        }
+        imuUpdated = true;
+#endif
         imuCalculateEstimatedAttitude(currentTimeUs);
+        IMU_UNLOCK;
     } else {
         acc.accSmooth[X] = 0;
         acc.accSmooth[Y] = 0;
@@ -453,12 +499,18 @@ int16_t calculateThrottleAngleCorrection(uint8_t throttle_correction_value)
 #ifdef SIMULATOR_BUILD
 void imuSetAttitudeRPY(float roll, float pitch, float yaw)
 {
+    IMU_LOCK;
+
     attitude.values.roll = roll * 10;
     attitude.values.pitch = pitch * 10;
     attitude.values.yaw = yaw * 10;
+
+    IMU_UNLOCK;
 }
 void imuSetAttitudeQuat(float w, float x, float y, float z)
 {
+    IMU_LOCK;
+
     q0 = w;
     q1 = x;
     q2 = y;
@@ -466,6 +518,19 @@ void imuSetAttitudeQuat(float w, float x, float y, float z)
 
     imuComputeRotationMatrix();
     imuUpdateEulerAngles();
+
+    IMU_UNLOCK;
+}
+#endif
+#if defined(SIMULATOR_BUILD) && defined(SIMULATOR_IMU_SYNC)
+void imuSetHasNewData(uint32_t dt)
+{
+    IMU_LOCK;
+
+    imuUpdated = true;
+    imuDeltaT = dt;
+
+    IMU_UNLOCK;
 }
 #endif
 
