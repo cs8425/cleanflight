@@ -43,7 +43,6 @@ const timerHardware_t timerHardware[1]; // unused
 
 #include "config/feature.h"
 #include "fc/config.h"
-#include "fc/rc_controls.h"
 #include "scheduler/scheduler.h"
 
 #include "dyad.h"
@@ -408,7 +407,7 @@ void pwmCompleteMotorUpdate(uint8_t motorCount) {
 	// for gazebo8 ArduCopterPlugin remap, normal range = [0.0, 1.0], 3D rang = [-1.0, 1.0]
 
 	double outScale = 1000.0;
-	if (feature(FEATURE_3D) && !IS_RC_MODE_ACTIVE(BOX3DDISABLESWITCH)) {
+	if (feature(FEATURE_3D)) {
 		outScale = 500.0;
 	}
 
