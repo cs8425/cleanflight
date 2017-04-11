@@ -67,7 +67,7 @@ int lockMainPID(void) {
 
 #define RAD2DEG (180.0 / M_PI)
 #define ACC_SCALE (256 / 9.80665)
-#define GYRO_SCALE (16.4)
+#define GYRO_SCALE (16.384)
 void sendMotorUpdate() {
 	udpSend(&pwmLink, &pwmPkt, sizeof(servo_packet));
 }
@@ -276,14 +276,10 @@ uint64_t nanos64_real() {
 	return (ts.tv_sec*1e9 + ts.tv_nsec) - (start_time.tv_sec*1e9 + start_time.tv_nsec);
 }
 uint64_t micros64_real() {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return 1.0e6*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) - (start_time.tv_sec + (start_time.tv_nsec*1.0e-9)));
+	return nanos64_real() / 1000;
 }
 uint64_t millis64_real() {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return 1.0e3*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) - (start_time.tv_sec + (start_time.tv_nsec*1.0e-9)));
+	return nanos64_real() / 1000000;
 }
 
 uint64_t micros64() {
@@ -294,18 +290,11 @@ uint64_t micros64() {
 	out += (now - last) * simRate;
 	last = now;
 
-	return out*1e-3;
+	return out / 1000;
 //	return micros64_real();
 }
 uint64_t millis64() {
-	static uint64_t last = 0;
-	static uint64_t out = 0;
-	uint64_t now = nanos64_real();
-
-	out += (now - last) * simRate;
-	last = now;
-
-	return out*1e-6;
+	return micros64() / 1000;
 //	return millis64_real();
 }
 

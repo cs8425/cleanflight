@@ -26,10 +26,10 @@
 #define printf printf
 #define sprintf sprintf
 
-#define ACC_LOCK pthread_mutex_unlock(&accUpdateLock)
+#define ACC_LOCK pthread_mutex_lock(&accUpdateLock)
 #define ACC_UNLOCK pthread_mutex_unlock(&accUpdateLock)
 
-#define GYRO_LOCK pthread_mutex_unlock(&gyroUpdateLock)
+#define GYRO_LOCK pthread_mutex_lock(&gyroUpdateLock)
 #define GYRO_UNLOCK pthread_mutex_unlock(&gyroUpdateLock)
 
 #else
@@ -122,7 +122,7 @@ bool fakeGyroDetect(gyroDev_t *gyro)
     gyro->read = fakeGyroRead;
     gyro->temperature = fakeGyroReadTemperature;
 #if defined(SIMULATOR_BUILD)
-    gyro->scale = 1.0f / 16.4f;
+    gyro->scale = 1.0f / 16.384f;
 #else
     gyro->scale = 1.0f;
 #endif
@@ -163,7 +163,7 @@ void fakeAccSet(int16_t x, int16_t y, int16_t z)
 #if defined(SIMULATOR_BUILD) && defined(SIMULATOR_ACC_SYNC)
     accUpdated = true;
 #endif
-    ACC_LOCK;
+    ACC_UNLOCK;
 }
 
 static bool fakeAccRead(accDev_t *acc)
