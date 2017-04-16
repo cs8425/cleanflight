@@ -104,7 +104,7 @@ static void addBootlogEntry(bootLogEntry_t * event)
     eventCount++;
 }
 
-void addBootlogEvent2(bootLogEventCode_e eventCode, uint16_t eventFlags)
+void addBootlogEvent2(bootLogEventCode_e eventCode, bootLogFlags_e eventFlags)
 {
     bootLogEntry_t  event;
     event.eventCode = eventCode;
@@ -112,7 +112,7 @@ void addBootlogEvent2(bootLogEventCode_e eventCode, uint16_t eventFlags)
     addBootlogEntry(&event);
 }
 
-void addBootlogEvent4(bootLogEventCode_e eventCode, uint16_t eventFlags, uint32_t param1, uint32_t param2)
+void addBootlogEvent4(bootLogEventCode_e eventCode, bootLogFlags_e eventFlags, uint32_t param1, uint32_t param2)
 {
     bootLogEntry_t  event;
     event.eventCode = eventCode;
@@ -122,7 +122,7 @@ void addBootlogEvent4(bootLogEventCode_e eventCode, uint16_t eventFlags, uint32_
     addBootlogEntry(&event);
 }
 
-void addBootlogEvent6(bootLogEventCode_e eventCode, uint16_t eventFlags, uint16_t param1, uint16_t param2, uint16_t param3, uint16_t param4)
+void addBootlogEvent6(bootLogEventCode_e eventCode, bootLogFlags_e eventFlags, uint16_t param1, uint16_t param2, uint16_t param3, uint16_t param4)
 {
     bootLogEntry_t  event;
     event.eventCode = eventCode;

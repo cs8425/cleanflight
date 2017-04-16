@@ -73,3 +73,8 @@ void imuTransformVectorBodyToEarth(t_fp_vector * v);
 void imuTransformVectorEarthToBody(t_fp_vector * v);
 
 void imuInit(void);
+
+#ifdef SIMULATOR_BUILD
+void imuSetAttitudeRPY(float roll, float pitch, float yaw);  // in deg
+void imuSetAttitudeQuat(float w, float x, float y, float z);
+#endif
