@@ -24,6 +24,8 @@
 #include <time.h>
 #include <pthread.h>
 
+#include "common/maths.h"
+
 #include "drivers/io.h"
 #include "drivers/dma.h"
 #include "drivers/serial.h"
@@ -90,19 +92,37 @@ void updateState(const fdm_packet* pkt) {
 		return;
 	}
 
-	int16_t x,y,z;
-	x = -pkt->imu_linear_acceleration_xyz[0] * ACC_SCALE;
-	y = -pkt->imu_linear_acceleration_xyz[1] * ACC_SCALE;
-	z = -pkt->imu_linear_acceleration_xyz[2] * ACC_SCALE;
-	fakeAccSet(fakeAccDev, x, y, z);
-//	printf("[acc]%lf,%lf,%lf\n", pkt->imu_linear_acceleration_xyz[0], pkt->imu_linear_acceleration_xyz[1], pkt->imu_linear_acceleration_xyz[2]);
+	if(pkt->type & 0x02 && fakeAccDev != NULL) {
+		int16_t x,y,z;
+/*		x = constrain(-pkt->imu_linear_acceleration_xyz[0] * ACC_SCALE, -32767, 32767);
+		y = constrain(-pkt->imu_linear_acceleration_xyz[1] * ACC_SCALE, -32767, 32767);
+		z = constrain(-pkt->imu_linear_acceleration_xyz[2] * ACC_SCALE, -32767, 32767);*/
 
-	x = pkt->imu_angular_velocity_rpy[0] * GYRO_SCALE * RAD2DEG;
-	y = -pkt->imu_angular_velocity_rpy[1] * GYRO_SCALE * RAD2DEG;
-	z = -pkt->imu_angular_velocity_rpy[2] * GYRO_SCALE * RAD2DEG;
-	fakeGyroSet(fakeGyroDev, x, y, z);
-//	printf("[gyr]%lf,%lf,%lf\n", pkt->imu_angular_velocity_rpy[0], pkt->imu_angular_velocity_rpy[1], pkt->imu_angular_velocity_rpy[2]);
+		// FLU
+		x = constrain(pkt->imu_linear_acceleration_xyz[0] * ACC_SCALE, -32767, 32767);
+		y = constrain(pkt->imu_linear_acceleration_xyz[1] * ACC_SCALE, -32767, 32767);
+		z = constrain(pkt->imu_linear_acceleration_xyz[2] * ACC_SCALE, -32767, 32767);
+		fakeAccSet(fakeAccDev, x, y, z);
+//		printf("[acc]%lf,%lf,%lf\n", pkt->imu_linear_acceleration_xyz[0], pkt->imu_linear_acceleration_xyz[1], pkt->imu_linear_acceleration_xyz[2]);
+//		printf("[acc]%d,%d,%d\n", x, y, z);
+	}
 
+	if(pkt->type & 0x01 && fakeGyroDev != NULL) {
+		int16_t x,y,z;
+/*		x = constrain(pkt->imu_angular_velocity_rpy[0] * GYRO_SCALE * RAD2DEG, -32767, 32767);
+		y = constrain(-pkt->imu_angular_velocity_rpy[1] * GYRO_SCALE * RAD2DEG, -32767, 32767);
+		z = constrain(-pkt->imu_angular_velocity_rpy[2] * GYRO_SCALE * RAD2DEG, -32767, 32767);*/
+
+		// FLU
+		x = constrain(pkt->imu_angular_velocity_rpy[0] * GYRO_SCALE * RAD2DEG, -32767, 32767);
+		y = constrain(pkt->imu_angular_velocity_rpy[1] * GYRO_SCALE * RAD2DEG, -32767, 32767);
+		z = constrain(pkt->imu_angular_velocity_rpy[2] * GYRO_SCALE * RAD2DEG, -32767, 32767);
+		fakeGyroSet(fakeGyroDev, x, y, z);
+//		printf("[gyr]%lf,%lf,%lf\n", pkt->imu_angular_velocity_rpy[0], pkt->imu_angular_velocity_rpy[1], pkt->imu_angular_velocity_rpy[2]);
+//		printf("[gyr]%d,%d,%d\n", x, y, z);
+	}
+
+	if(pkt->type & 0x08) {
 #if defined(SKIP_IMU_CALC)
 #if defined(SET_IMU_FROM_EULER)
 	// set from Euler
@@ -133,6 +153,7 @@ void updateState(const fdm_packet* pkt) {
 	imuSetAttitudeQuat(pkt->imu_orientation_quat[0], pkt->imu_orientation_quat[1], pkt->imu_orientation_quat[2], pkt->imu_orientation_quat[3]);
 #endif
 #endif
+	}
 
 #if defined(SIMULATOR_IMU_SYNC)
 	imuSetHasNewData(deltaSim*1e6);
@@ -169,6 +190,7 @@ static void* udpThread(void* data) {
 		n = udpRecv(&stateLink, &fdmPkt, sizeof(fdm_packet), 100);
 		if(n == sizeof(fdm_packet)) {
 //			printf("[data]new fdm %d\n", n);
+			pwmLink.si = stateLink.recv;
 			updateState(&fdmPkt);
 		}
 	}
@@ -207,6 +229,7 @@ void systemInit(void) {
 		printf("Create updateLock error!\n");
 		exit(1);
 	}
+	pthread_mutex_lock(&updateLock);
 
 	if (pthread_mutex_init(&mainLoopLock, NULL) != 0) {
 		printf("Create mainLoopLock error!\n");
@@ -219,11 +242,13 @@ void systemInit(void) {
 		exit(1);
 	}
 
-	ret = udpInit(&pwmLink, "127.0.0.1", 9002, false);
-	printf("init PwnOut UDP link...%d\n", ret);
+//	ret = udpInit(&pwmLink, "127.0.0.1", 9002, false);
+//	printf("init PwnOut UDP link...%d\n", ret);
 
 	ret = udpInit(&stateLink, NULL, 9003, true);
 	printf("start UDP server...%d\n", ret);
+	pwmLink.fd = stateLink.fd;
+
 
 	ret = pthread_create(&udpWorker, NULL, udpThread, NULL);
 	if(ret != 0) {
@@ -274,14 +299,10 @@ uint64_t nanos64_real() {
 	return (ts.tv_sec*1e9 + ts.tv_nsec) - (start_time.tv_sec*1e9 + start_time.tv_nsec);
 }
 uint64_t micros64_real() {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return 1.0e6*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) - (start_time.tv_sec + (start_time.tv_nsec*1.0e-9)));
+	return nanos64_real() / 1000;
 }
 uint64_t millis64_real() {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return 1.0e3*((ts.tv_sec + (ts.tv_nsec*1.0e-9)) - (start_time.tv_sec + (start_time.tv_nsec*1.0e-9)));
+	return nanos64_real() / 1000000;
 }
 
 uint64_t micros64() {
@@ -292,7 +313,7 @@ uint64_t micros64() {
 	out += (now - last) * simRate;
 	last = now;
 
-	return out*1e-3;
+	return out / 1000;
 //	return micros64_real();
 }
 uint64_t millis64() {
@@ -303,7 +324,7 @@ uint64_t millis64() {
 	out += (now - last) * simRate;
 	last = now;
 
-	return out*1e-6;
+	return out / 1000000;
 //	return millis64_real();
 }
 

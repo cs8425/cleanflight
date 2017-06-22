@@ -131,7 +131,7 @@ STATIC_UNIT_TESTED void imuComputeRotationMatrix(void)
     rMat[2][1] = 2.0f * (q2q3 - -q0q1);
     rMat[2][2] = 1.0f - 2.0f * q1q1 - 2.0f * q2q2;
 
-#if defined(SIMULATOR_BUILD) && defined(SKIP_IMU_CALC) && !defined(SET_IMU_FROM_EULER)
+#if defined(SIMULATOR_BUILD) && defined(SKIP_IMU_CALC) && !defined(SET_IMU_FROM_EULER) && !defined(IMU_Q_ENU_FLU)
     rMat[1][0] = -2.0f * (q1q2 - -q0q3);
     rMat[2][0] = -2.0f * (q1q3 + -q0q2);
 #endif

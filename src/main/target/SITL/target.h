@@ -26,6 +26,7 @@
 // use simulatior's attitude directly
 // disable this if wants to test AHRS algorithm
 #define SKIP_IMU_CALC
+#define IMU_Q_ENU_FLU
 
 //#define SIMULATOR_ACC_SYNC
 //#define SIMULATOR_GYRO_SYNC
@@ -220,15 +221,17 @@ typedef enum
 } FLASH_Status;
 
 typedef struct {
+	uint16_t type;	// field contain in packet
 	double timestamp;	// in seconds
 	double imu_angular_velocity_rpy[3];	// rad/s -> range: +/- 8192; +/- 2000 deg/se
 	double imu_linear_acceleration_xyz[3];	// m/s/s NED, body frame -> sim 1G = 9.80665, FC 1G = 256
+	double magXYZ[3];
 	double imu_orientation_quat[4];	//w, x, y, z
 	double velocity_xyz[3];	// m/s, earth frame
 	double position_xyz[3];	// meters, NED from origin
 } fdm_packet;
 typedef struct {
-	float motor_speed[4];	// normal: [0.0, 1.0], 3D: [-1.0, 1.0]
+	float motor_speed[16];	// normal: [0.0, 1.0], 3D: [-1.0, 1.0]
 } servo_packet;
 
 void FLASH_Unlock(void);
