@@ -791,6 +791,7 @@ FC_SRC = \
             telemetry/hott.c \
             telemetry/smartport.c \
             telemetry/ltm.c \
+            telemetry/lcp.c \
             telemetry/mavlink.c \
             telemetry/ibus.c \
             telemetry/ibus_shared.c \

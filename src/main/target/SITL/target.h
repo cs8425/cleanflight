@@ -79,6 +79,8 @@
 
 #define USE_PARAMETER_GROUPS
 
+#define TELEMETRY_LCP
+
 #undef STACK_CHECK // I think SITL don't need this
 #undef USE_DASHBOARD
 #undef TELEMETRY_LTM

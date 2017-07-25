@@ -52,6 +52,7 @@
 #include "telemetry/crsf.h"
 #include "telemetry/srxl.h"
 #include "telemetry/ibus.h"
+#include "telemetry/lcp.h"
 
 
 PG_REGISTER_WITH_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig, PG_TELEMETRY_CONFIG, 0);
@@ -105,6 +106,9 @@ void telemetryInit(void)
 #endif
 #ifdef TELEMETRY_IBUS
     initIbusTelemetry();
+#endif
+#ifdef TELEMETRY_LCP
+    initLcpTelemetry();
 #endif
 
     telemetryCheckState();
@@ -171,6 +175,9 @@ void telemetryCheckState(void)
 #ifdef TELEMETRY_IBUS
     checkIbusTelemetryState();
 #endif
+#ifdef TELEMETRY_LCP
+    checkLcpTelemetryState();
+#endif
 }
 
 void telemetryProcess(uint32_t currentTime)
@@ -203,6 +210,9 @@ void telemetryProcess(uint32_t currentTime)
 #endif
 #ifdef TELEMETRY_IBUS
     handleIbusTelemetry();
+#endif
+#ifdef TELEMETRY_LCP
+    handleLcpTelemetry();
 #endif
 }
 
