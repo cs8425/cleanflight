@@ -115,6 +115,7 @@ FC_SRC = \
             rx/sumd.c \
             rx/sumh.c \
             rx/xbus.c \
+            rx/rx_onboard.c \
             sensors/acceleration.c \
             sensors/boardalignment.c \
             sensors/compass.c \
@@ -158,6 +159,7 @@ FC_SRC = \
             telemetry/hott.c \
             telemetry/smartport.c \
             telemetry/ltm.c \
+            telemetry/lcp.c \
             telemetry/mavlink.c \
             telemetry/ibus.c \
             telemetry/ibus_shared.c \
@@ -218,6 +220,7 @@ SPEED_OPTIMISED_SRC := $(SPEED_OPTIMISED_SRC) \
             rx/spektrum.c \
             rx/sumd.c \
             rx/xbus.c \
+            rx/rx_onboard.c \
             scheduler/scheduler.c \
             sensors/acceleration.c \
             sensors/boardalignment.c \

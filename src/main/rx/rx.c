@@ -60,6 +60,7 @@
 #include "rx/crsf.h"
 #include "rx/rx_spi.h"
 #include "rx/targetcustomserial.h"
+#include "rx/rx_onboard.h"
 
 
 //#define DEBUG_RX_SIGNAL_LOSS
@@ -347,6 +348,12 @@ void rxInit(void)
 #if defined(USE_PWM) || defined(USE_PPM)
     if (feature(FEATURE_RX_PPM) || feature(FEATURE_RX_PARALLEL_PWM)) {
         rxPwmInit(rxConfig(), &rxRuntimeConfig);
+    }
+#endif
+
+#if defined(USE_RX_OBC)
+    if (feature(FEATURE_RX_OBC)) {
+        rxOBCInit(rxConfig(), &rxRuntimeConfig);
     }
 #endif
 
