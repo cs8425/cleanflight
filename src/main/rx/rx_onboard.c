@@ -19,7 +19,7 @@
 #include <platform.h>
 
 #ifdef USE_RX_OBC
-#include <stdio.h>
+//#include <stdio.h>
 
 #include "common/maths.h"
 #include "config/feature.h"
@@ -106,7 +106,11 @@ uint16_t rxOBCReadRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t channe
     if (channel >= rxRuntimeConfig->channelCount) {
         return 0;
     }
-//    const uint16_t data = rxOBCRuntimeConfig.rxRuntime.rcReadRawFn(rxRuntimeConfig, channel);
+
+    // channel T1234, force return RX
+    if (channel > 2) {
+        return RXStatus.frame[channel];
+    }
 
     if (OBCStatus.timeout) {
         return RXStatus.frame[channel];
@@ -116,7 +120,7 @@ uint16_t rxOBCReadRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t channe
         return OBCStatus.frame[channel];
     }
 
-//  force use RX
+    // force use RX
     if (currentRx == 1) {
         return RXStatus.frame[channel];
     }
@@ -218,7 +222,7 @@ static uint8_t rxOBCFrameStatus(void)
 
 
     // should never goes here !!
-printf("[RX]ERROR!!\n");
+//printf("[RX]ERROR!!\n");
     while(1);
 }
 

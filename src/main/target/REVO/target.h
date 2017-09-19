@@ -144,6 +144,18 @@
 #define BARO
 #define USE_BARO_MS5611
 
+#if defined(AIRBOTF4)
+
+#define USE_BARO_BMP085
+#define USE_BARO_BMP280
+
+#define TELEMETRY_LCP
+#define USE_RX_OBC // RX input for On-Board-Computer
+
+#define DEFAULT_FEATURES        (FEATURE_TELEMETRY | FEATURE_RX_OBC)
+
+#endif
+
 #if defined(AIRBOTF4SD)
 // SDCARD support for AIRBOTF4SD
 #define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
@@ -186,8 +198,14 @@
 #define UART1_AHB1_PERIPHERALS  RCC_AHB1Periph_DMA2
 
 #define USE_UART3
+#if defined(AIRBOTF4) || defined(AIRBOTF4SD)
+// On AIRBOTF4 and AIRBOTF4SD, I2C2 and UART3 are configurable
+#define UART3_RX_PIN            NONE // PB11, shared with I2C2_SDA
+#define UART3_TX_PIN            NONE // PB10, shared with I2C2_SCL
+#else
 #define UART3_RX_PIN            PB11
 #define UART3_TX_PIN            PB10
+#endif
 
 #if defined(REVOLT) || defined(REVO)
 #define USE_UART4
@@ -225,8 +243,8 @@
 #if defined(AIRBOTF4) || defined(AIRBOTF4SD)
 // On AIRBOTF4 and AIRBOTF4SD, I2C2 and I2C3 are configurable
 #define USE_I2C_DEVICE_2
-#define I2C2_SCL                NONE // PB10, shared with UART3TX
-#define I2C2_SDA                NONE // PB11, shared with UART3RX
+#define I2C2_SCL                PB10 // PB10, shared with UART3TX
+#define I2C2_SDA                PB11 // PB11, shared with UART3RX
 #define USE_I2C_DEVICE_3
 #define I2C3_SCL                NONE // PA8, PWM6
 #define I2C3_SDA                NONE // PC9, CH6
