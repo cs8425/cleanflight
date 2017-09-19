@@ -114,6 +114,8 @@ extern uint8_t __config_end;
 #include "io/vtx_rtc6705.h"
 #include "io/vtx_control.h"
 
+#include "msp/msp_protocol.h"
+
 #include "rx/rx.h"
 #include "rx/spektrum.h"
 #include "rx/frsky_d.h"
@@ -2456,6 +2458,7 @@ static void cliDshotProg(char *cmdline)
     char *pch = strtok_r(cmdline, " ", &saveptr);
     int pos = 0;
     int escIndex = 0;
+    bool firstCommand = true;
     while (pch != NULL) {
         switch (pos) {
         case 0:
@@ -2466,33 +2469,41 @@ static void cliDshotProg(char *cmdline)
 
             break;
         default:
-            pwmDisableMotors();
+            {
+                int command = atoi(pch);
+                if (command >= 0 && command < DSHOT_MIN_THROTTLE) {
+                    if (firstCommand) {
+                        pwmDisableMotors();
 
-            int command = atoi(pch);
-            if (command >= 0 && command < DSHOT_MIN_THROTTLE) {
-                if (command == DSHOT_CMD_ESC_INFO) {
-                    delay(5); // Wait for potential ESC telemetry transmission to finish
-                }
+                        if (command == DSHOT_CMD_ESC_INFO) {
+                            delay(5); // Wait for potential ESC telemetry transmission to finish
+                        } else {
+                            delay(1);
+                        }
 
-                if (command != DSHOT_CMD_ESC_INFO) {
-                    pwmWriteDshotCommand(escIndex, getMotorCount(), command);
-                } else {
-                    if (escIndex != ALL_MOTORS) {
-                        executeEscInfoCommand(escIndex);
+                        firstCommand = false;
+                    }
+
+                    if (command != DSHOT_CMD_ESC_INFO) {
+                        pwmWriteDshotCommand(escIndex, getMotorCount(), command);
                     } else {
-                        for (uint8_t i = 0; i < getMotorCount(); i++) {
-                            executeEscInfoCommand(i);
+                        if (escIndex != ALL_MOTORS) {
+                            executeEscInfoCommand(escIndex);
+                        } else {
+                            for (uint8_t i = 0; i < getMotorCount(); i++) {
+                                executeEscInfoCommand(i);
+                            }
                         }
                     }
-                }
 
-                cliPrintLinef("Command %d written.", command);
+                    cliPrintLinef("Command %d written.", command);
 
-                if (command <= 5) {
-                    delay(20); // wait for sound output to finish
+                    if (command <= 5) {
+                        delay(20); // wait for sound output to finish
+                    }
+                } else {
+                    cliPrintLinef("Invalid command, range 1 to %d.", DSHOT_MIN_THROTTLE - 1);
                 }
-            } else {
-                cliPrintLinef("Invalid command, range 1 to %d.", DSHOT_MIN_THROTTLE - 1);
             }
 
             break;
@@ -2751,11 +2762,21 @@ static void cliSave(char *cmdline)
 
 static void cliDefaults(char *cmdline)
 {
-    UNUSED(cmdline);
+    bool saveConfigs;
+
+    if (isEmpty(cmdline)) {
+        saveConfigs = true;
+    } else if (strncasecmp(cmdline, "nosave", 6) == 0) {
+        saveConfigs = false;
+    } else {
+        return;
+    }
 
     cliPrintHashLine("resetting to defaults");
-    resetEEPROM();
-    cliReboot();
+    resetConfigs();
+    if (saveConfigs) {
+        cliSave(NULL);
+    }
 }
 
 STATIC_UNIT_TESTED void cliGet(char *cmdline)
@@ -3070,14 +3091,15 @@ static void cliVersion(char *cmdline)
 {
     UNUSED(cmdline);
 
-    cliPrintLinef("# %s / %s (%s) %s %s / %s (%s)",
+    cliPrintLinef("# %s / %s (%s) %s %s / %s (%s) MSP API: %s",
         FC_FIRMWARE_NAME,
         targetName,
         systemConfig()->boardIdentifier,
         FC_VERSION_STRING,
         buildDate,
         buildTime,
-        shortGitRevision
+        shortGitRevision,
+        MSP_API_VERSION_STRING
     );
 }
 
@@ -3423,7 +3445,7 @@ static void printConfig(char *cmdline, bool doDiff)
 
         if ((dumpMask & (DUMP_ALL | DO_DIFF)) == (DUMP_ALL | DO_DIFF)) {
             cliPrintHashLine("reset configuration to default settings");
-            cliPrint("defaults");
+            cliPrint("defaults nosave");
             cliPrintLinefeed();
         }
 
@@ -3588,7 +3610,7 @@ const clicmd_t cmdTable[] = {
 #ifdef LED_STRIP
     CLI_COMMAND_DEF("color", "configure colors", NULL, cliColor),
 #endif
-    CLI_COMMAND_DEF("defaults", "reset to defaults and reboot", NULL, cliDefaults),
+    CLI_COMMAND_DEF("defaults", "reset to defaults and reboot", "[nosave]", cliDefaults),
     CLI_COMMAND_DEF("diff", "list configuration changes from default",
         "[master|profile|rates|all] {defaults}", cliDiff),
 #ifdef USE_DSHOT

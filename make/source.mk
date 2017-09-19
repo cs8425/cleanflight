@@ -161,6 +161,7 @@ FC_SRC = \
             telemetry/ltm.c \
             telemetry/lcp.c \
             telemetry/mavlink.c \
+            telemetry/msp_shared.c \
             telemetry/ibus.c \
             telemetry/ibus_shared.c \
             sensors/esc_sensor.c \

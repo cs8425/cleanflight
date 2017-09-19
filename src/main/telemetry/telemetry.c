@@ -53,6 +53,7 @@
 #include "telemetry/srxl.h"
 #include "telemetry/ibus.h"
 #include "telemetry/lcp.h"
+#include "telemetry/msp_shared.h"
 
 
 PG_REGISTER_WITH_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig, PG_TELEMETRY_CONFIG, 0);
@@ -100,6 +101,9 @@ void telemetryInit(void)
 #endif
 #ifdef TELEMETRY_IBUS
     initIbusTelemetry();
+#endif
+#if defined(USE_MSP_OVER_TELEMETRY)
+    initSharedMsp();
 #endif
 #ifdef TELEMETRY_LCP
     initLcpTelemetry();

@@ -224,7 +224,7 @@ void beeper(beeperMode_e mode)
     if (
         mode == BEEPER_SILENCE || (
             (getBeeperOffMask() & (1 << (BEEPER_USB - 1)))
-            && (batteryConfig()->voltageMeterSource != VOLTAGE_METER_NONE && (getBatteryCellCount() == 0))
+            && getBatteryState() == BATTERY_NOT_PRESENT
         )
     ) {
         beeperSilence();
@@ -364,11 +364,12 @@ void beeperUpdate(timeUs_t currentTimeUs)
 
     #ifdef USE_DSHOT
     if (!areMotorsRunning() && beeperConfig()->dshotForward && currentBeeperEntry->mode == BEEPER_RX_SET) {
-	pwmDisableMotors();
+        pwmDisableMotors();
+        delay(1);
 
         pwmWriteDshotCommand(ALL_MOTORS, getMotorCount(), DSHOT_CMD_BEEP3);
 
-	pwmEnableMotors();
+        pwmEnableMotors();
     }
     #endif
 

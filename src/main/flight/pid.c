@@ -99,7 +99,7 @@ void resetPidProfile(pidProfile_t *pidProfile)
         .pidAtMinThrottle = PID_STABILISATION_ON,
         .levelAngleLimit = 55,
         .setpointRelaxRatio = 100,
-        .dtermSetpointWeight = 60,
+        .dtermSetpointWeight = 0,
         .yawRateAccelLimit = 100,
         .rateAccelLimit = 0,
         .itermThrottleThreshold = 350,
@@ -126,7 +126,7 @@ void pgResetFn_pidProfiles(pidProfile_t *pidProfiles)
     }
 }
 
-void pidSetTargetLooptime(uint32_t pidLooptime)
+static void pidSetTargetLooptime(uint32_t pidLooptime)
 {
     targetPidLooptime = pidLooptime;
     dT = (float)targetPidLooptime * 0.000001f;
@@ -172,7 +172,7 @@ void pidInitFilters(const pidProfile_t *pidProfile)
 
     const uint32_t pidFrequencyNyquist = (1.0f / dT) / 2; // No rounding needed
 
-    float dTermNotchHz;
+    uint16_t dTermNotchHz;
     if (pidProfile->dterm_notch_hz <= pidFrequencyNyquist) {
         dTermNotchHz = pidProfile->dterm_notch_hz;
     } else {
@@ -183,8 +183,8 @@ void pidInitFilters(const pidProfile_t *pidProfile)
         }
     }
 
-    static biquadFilter_t biquadFilterNotch[2];
-    if (dTermNotchHz) {
+    if (dTermNotchHz != 0 && pidProfile->dterm_notch_cutoff != 0) {
+        static biquadFilter_t biquadFilterNotch[2];
         dtermNotchFilterApplyFn = (filterApplyFnPtr)biquadFilterApply;
         const float notchQ = filterGetNotchQ(dTermNotchHz, pidProfile->dterm_notch_cutoff);
         for (int axis = FD_ROLL; axis <= FD_PITCH; axis++) {
@@ -199,8 +199,6 @@ void pidInitFilters(const pidProfile_t *pidProfile)
     if (pidProfile->dterm_lpf_hz == 0 || pidProfile->dterm_lpf_hz > pidFrequencyNyquist) {
         dtermLpfApplyFn = nullFilterApply;
     } else {
-        memset(&dtermFilterLpfUnion, 0, sizeof(dtermFilterLpfUnion));
-
         switch (pidProfile->dterm_filter_type) {
         default:
             dtermLpfApplyFn = nullFilterApply;
@@ -294,6 +292,16 @@ void pidInit(const pidProfile_t *pidProfile)
     pidInitMixer(pidProfile);
 }
 
+
+void pidCopyProfile(uint8_t dstPidProfileIndex, uint8_t srcPidProfileIndex)
+{
+    if ((dstPidProfileIndex < MAX_PROFILE_COUNT-1 && srcPidProfileIndex < MAX_PROFILE_COUNT-1)
+        && dstPidProfileIndex != srcPidProfileIndex
+    ) {
+        memcpy(pidProfilesMutable(dstPidProfileIndex), pidProfilesMutable(srcPidProfileIndex), sizeof(pidProfile_t));
+    }
+}
+
 // calculates strength of horizon leveling; 0 = none, 1.0 = most leveling
 static float calcHorizonLevelStrength(void)
 {
@@ -371,7 +379,8 @@ static float pidLevel(int axis, const pidProfile_t *pidProfile, const rollAndPit
     return currentPidSetpoint;
 }
 
-static float accelerationLimit(int axis, float currentPidSetpoint) {
+static float accelerationLimit(int axis, float currentPidSetpoint)
+{
     static float previousSetpoint[3];
     const float currentVelocity = currentPidSetpoint- previousSetpoint[axis];
 
@@ -488,7 +497,7 @@ void pidController(const pidProfile_t *pidProfile, const rollAndPitchTrims_t *an
             gyroRateFiltered = dtermLpfApplyFn(dtermFilterLpf[axis], gyroRateFiltered);
 
             float dynC = 0;
-            if ( (pidProfile->setpointRelaxRatio < 100) && (!flightModeFlags) ) {
+            if ( (pidProfile->dtermSetpointWeight > 0) && (!flightModeFlags) ) {
                 dynC = dtermSetpointWeight * MIN(getRcDeflectionAbs(axis) * relaxFactor, 1.0f);
             }
             const float rD = dynC * currentPidSetpoint - gyroRateFiltered;    // cr - y
@@ -521,13 +530,5 @@ void pidController(const pidProfile_t *pidProfile, const rollAndPitchTrims_t *an
             axisPID_I[axis] = 0;
             axisPID_D[axis] = 0;
         }
-    }
-}
-
-void copyPidProfile(const uint8_t dstPidProfileIndex, const uint8_t srcPidProfileIndex) {
-    if ((dstPidProfileIndex < MAX_PROFILE_COUNT-1 && srcPidProfileIndex < MAX_PROFILE_COUNT-1)
-        && dstPidProfileIndex != srcPidProfileIndex
-    ) {
-        memcpy(pidProfilesMutable(dstPidProfileIndex), pidProfilesMutable(srcPidProfileIndex), sizeof(pidProfile_t));
     }
 }

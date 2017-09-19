@@ -108,6 +108,7 @@
 #include "sensors/gyro.h"
 #include "sensors/sensors.h"
 #include "sensors/sonar.h"
+#include "sensors/esc_sensor.h"
 
 #include "telemetry/telemetry.h"
 
@@ -310,7 +311,12 @@ static void serializeDataflashReadReply(sbuf_t *dst, uint32_t address, const uin
     sbufWriteU32(dst, address);
 
     // legacy format does not support compression
+#ifdef USE_HUFFMAN
     const uint8_t compressionMethod = (!allowCompression || useLegacyFormat) ? NO_COMPRESSION : HUFFMAN;
+#else
+    const uint8_t compressionMethod = NO_COMPRESSION;
+    UNUSED(allowCompression);
+#endif
 
     if (compressionMethod == NO_COMPRESSION) {
         if (!useLegacyFormat) {
@@ -925,6 +931,16 @@ static bool mspFcProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst)
         break;
 #endif
 
+#ifdef USE_DSHOT
+    case MSP_ESC_SENSOR_DATA:
+        sbufWriteU8(dst, getMotorCount());
+        for (int i = 0; i < getMotorCount(); i++) {         
+            sbufWriteU8(dst, getEscSensorData(i)->temperature);
+            sbufWriteU16(dst, getEscSensorData(i)->rpm);
+        }
+        break;
+#endif
+
 #ifdef GPS
     case MSP_GPS_CONFIG:
         sbufWriteU8(dst, gpsConfig()->provider);
@@ -1321,7 +1337,7 @@ static mspResult_e mspFcProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
         uint8_t dstProfileIndex = sbufReadU8(src);
         uint8_t srcProfileIndex = sbufReadU8(src);
         if (value == 0) {
-            copyPidProfile(dstProfileIndex, srcProfileIndex);
+            pidCopyProfile(dstProfileIndex, srcProfileIndex);
         }
         else if (value == 1) {
             copyControlRateProfile(dstProfileIndex, srcProfileIndex);

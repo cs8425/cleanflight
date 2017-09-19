@@ -31,6 +31,8 @@ extern "C" {
     #include "common/filter.h"
     #include "common/gps_conversion.h"
     #include "common/maths.h"
+    #include "common/printf.h"
+    #include "common/typeconversion.h"
 
     #include "config/parameter_group.h"
     #include "config/parameter_group_ids.h"
@@ -38,6 +40,7 @@ extern "C" {
     #include "drivers/serial.h"
     #include "drivers/system.h"
 
+    #include "fc/config.h"
     #include "fc/runtime_config.h"
 
     #include "flight/pid.h"
@@ -46,6 +49,7 @@ extern "C" {
     #include "io/gps.h"
     #include "io/serial.h"
 
+    #include "rx/rx.h"
     #include "rx/crsf.h"
 
     #include "sensors/battery.h"
@@ -53,15 +57,19 @@ extern "C" {
 
     #include "telemetry/crsf.h"
     #include "telemetry/telemetry.h"
+    #include "telemetry/msp_shared.h"
 
     bool airMode;
 
     uint16_t testBatteryVoltage = 0;
     int32_t testAmperage = 0;
+    int32_t testmAhDrawn = 0;
 
     serialPort_t *telemetrySharedPort;
     PG_REGISTER(batteryConfig_t, batteryConfig, PG_BATTERY_CONFIG, 0);
     PG_REGISTER(telemetryConfig_t, telemetryConfig, PG_TELEMETRY_CONFIG, 0);
+    PG_REGISTER(systemConfig_t, systemConfig, PG_SYSTEM_CONFIG, 0);
+    PG_REGISTER(rxConfig_t, rxConfig, PG_RX_CONFIG, 0);
 }
 
 #include "unittest_macros.h"
@@ -155,7 +163,7 @@ TEST(TelemetryCrsfTest, TestBattery)
 
     testBatteryVoltage = 33; // 3.3V = 3300 mv
     testAmperage = 2960; // = 29.60A = 29600mA - amperage is in 0.01A steps
-    batteryConfigMutable()->batteryCapacity = 1234;
+    testmAhDrawn = 1234;
     frameLen = getCrsfFrame(frame, CRSF_FRAMETYPE_BATTERY_SENSOR);
     voltage = frame[3] << 8 | frame[4]; // mV * 100
     EXPECT_EQ(33, voltage);
@@ -292,6 +300,7 @@ void serialWriteBuf(serialPort_t *, const uint8_t *, int) {}
 void serialSetMode(serialPort_t *, portMode_e) {}
 serialPort_t *openSerialPort(serialPortIdentifier_e, serialPortFunction_e, serialReceiveCallbackPtr, uint32_t, portMode_e, portOptions_e) {return NULL;}
 void closeSerialPort(serialPort_t *) {}
+bool isSerialTransmitBufferEmpty(const serialPort_t *) { return true; }
 
 serialPortConfig_t *findSerialPortConfig(serialPortFunction_e) {return NULL;}
 
@@ -317,5 +326,12 @@ batteryState_e getBatteryState(void) {
 uint8_t calculateBatteryPercentageRemaining(void) {
     return 67;
 }
+
+int32_t getMAhDrawn(void){
+  return testmAhDrawn;
+}
+
+bool sendMspReply(uint8_t, mspResponseFnPtr) { return false; }
+bool handleMspFrame(uint8_t *, uint8_t *)  { return false; }
 
 }
