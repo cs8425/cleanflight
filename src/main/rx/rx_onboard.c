@@ -184,8 +184,14 @@ static uint8_t rxOBCFrameStatus(void)
             currentRx = 1;
         }
 
+
         RXStatus.lastUpdate = nowMs;
         RXStatus.timeout = false;
+
+        if (frameStatus & RX_FRAME_FAILSAFE) { // FAILSAFE
+            status |= 1 << 3;
+            RXStatus.timeout = true;
+        } 
     }
 
     // RX timeout check
