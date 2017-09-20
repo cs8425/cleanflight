@@ -34,3 +34,7 @@ int32_t getEstimatedVario(void);
 void applyAltHold(void);
 void updateAltHoldState(void);
 void updateSonarAltHoldState(void);
+
+void setEstimatedAltitude(int32_t altitude);
+void setEstimatedVario(int32_t vspd);
+

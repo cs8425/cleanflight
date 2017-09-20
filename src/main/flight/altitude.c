@@ -305,3 +305,14 @@ int32_t getEstimatedVario(void)
 {
     return estimatedVario;
 }
+
+void setEstimatedAltitude(int32_t altitude)
+{
+    estimatedAltitude = altitude;
+}
+
+void setEstimatedVario(int32_t vspd)
+{
+    estimatedVario = vspd;
+}
+

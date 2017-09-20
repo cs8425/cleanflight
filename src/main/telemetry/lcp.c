@@ -75,7 +75,7 @@
 //#include "flight/pid.h"
 #include "flight/imu.h"
 //#include "flight/failsafe.h"
-//#include "flight/altitude.h"
+#include "flight/altitude.h"
 //#include "flight/navigation.h"
 
 #include "telemetry/telemetry.h"
@@ -213,7 +213,7 @@ static void lcp_finalise(void)
  * Attitude A-frame - 10 Hz at > 2400 baud
  *  PITCH ROLL HEADING
  */
-static void lcp_aframe()
+static void lcp_aframe(void)
 {
     lcp_initialise_packet('A');
     lcp_serialise_16(DECIDEGREES_TO_DEGREES(attitude.values.pitch));
@@ -223,43 +223,29 @@ static void lcp_aframe()
 }
 
 /*
- * OSD additional data frame, 1 Hz rate
- *  This frame will be ignored by Ghettostation, but processed by GhettOSD if it is used as standalone onboard OSD
- *  home pos, home alt, direction to home
+ * G-frame 5Hhz
+ * ALT, VSPD
  */
-/*static void ltm_oframe()
+static void lcp_gframe(void)
 {
-    ltm_initialise_packet('O');
-#if defined(GPS)
-    ltm_serialise_32(GPS_home[LAT]);
-    ltm_serialise_32(GPS_home[LON]);
-#else
-    ltm_serialise_32(0);
-    ltm_serialise_32(0);
-#endif
-    ltm_serialise_32(0);                // Don't have GPS home altitude
-    ltm_serialise_8(1);                 // OSD always ON
-    ltm_serialise_8(STATE(GPS_FIX_HOME) ? 1 : 0);
-    ltm_finalise();
-}*/
+    lcp_initialise_packet('G');
+    lcp_serialise_32(getEstimatedAltitude()); // ALT
+    lcp_serialise_32(getEstimatedVario()); // VSPD
+    lcp_finalise();
+
+}
 
 static void process_lcp(void)
 {
-/*
-    static uint8_t ltm_scheduler;
-    ltm_aframe();
 
-    if (ltm_scheduler & 1)
-        ltm_gframe();
-    else
-        ltm_sframe();
-    if (ltm_scheduler == 0)
-        ltm_oframe();
-
-    ltm_scheduler++;
-    ltm_scheduler %= 10;
-*/
+    static uint8_t lcp_scheduler;
     lcp_aframe();
+
+    if (lcp_scheduler & 1) lcp_gframe();
+
+    lcp_scheduler++;
+    lcp_scheduler %= 10;
+
 }
 
 static void lcpProcessReceivedData(lcpPacket_t *lcpPkt, uint8_t c)
@@ -350,6 +336,14 @@ void handleLcpTelemetry(void)
                 }
 //                rxMspFrameReceive(frame, channelCount);
                 rxOBCFrameReceive(frame, channelCount);
+            }
+
+            if (pkt.cmd == 0x02) { // set Altitude command
+                int32_t alt = (int32_t) sbufReadU32(&src);
+                int32_t vspd = (int32_t) sbufReadU32(&src);
+                setEstimatedAltitude(alt);
+                //setEstimatedVario(vspd);
+				UNUSED(vspd);
             }
 
             pkt.state = LCP_IDLE;
