@@ -22,7 +22,7 @@
 #include "common/time.h"
 
 #define OBC_DEADBAND 50
-#define OBC_RX_TIMEOUT 100 // 100mS
+#define OBC_RX_TIMEOUT 400 // 400mS
 #define OBC_SWITCH_TH 1600
 #define OBC_SWITCH_CH 6 // RPYT1234 => 0, 1, 2, 3, 4, 5, 6
 

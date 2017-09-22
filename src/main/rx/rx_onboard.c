@@ -108,7 +108,7 @@ uint16_t rxOBCReadRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t channe
     }
 
     // channel T1234, force return RX
-    if (channel > 2) {
+    if (channel >= 2) {
         return RXStatus.frame[channel];
     }
 
@@ -191,7 +191,7 @@ static uint8_t rxOBCFrameStatus(void)
         if (frameStatus & RX_FRAME_FAILSAFE) { // FAILSAFE
             status |= 1 << 3;
             RXStatus.timeout = true;
-        } 
+        }
     }
 
     // RX timeout check

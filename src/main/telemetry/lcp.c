@@ -343,7 +343,7 @@ void handleLcpTelemetry(void)
                 int32_t vspd = (int32_t) sbufReadU32(&src);
                 setEstimatedAltitude(alt);
                 //setEstimatedVario(vspd);
-				UNUSED(vspd);
+                UNUSED(vspd);
             }
 
             pkt.state = LCP_IDLE;
