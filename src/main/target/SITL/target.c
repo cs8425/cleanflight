@@ -41,6 +41,8 @@ const timerHardware_t timerHardware[1]; // unused
 #include "drivers/accgyro/accgyro_fake.h"
 #include "flight/imu.h"
 
+#include "drivers/barometer/barometer_fake.h"
+
 #include "config/feature.h"
 #include "fc/config.h"
 #include "scheduler/scheduler.h"
@@ -143,6 +145,12 @@ void updateState(const fdm_packet* pkt) {
     imuUpdateAttitude(micros());
 #endif
 
+
+//    printf("[pos]%lf,%lf,%lf\n", pkt->position_xyz[0], pkt->position_xyz[1], pkt->position_xyz[2]); // up = -Z
+//    printf("[vel]%lf,%lf,%lf\n", pkt->velocity_xyz[0], pkt->velocity_xyz[1], pkt->velocity_xyz[2]);
+#if defined(USE_FAKE_ALTITUDE)
+    fakeBaroSetAlt(pkt->position_xyz[2] * -100.0);
+#endif
 
     if (deltaSim < 0.02 && deltaSim > 0) { // simulator should run faster than 50Hz
 //        simRate = simRate * 0.5 + (1e6 * deltaSim / (realtime_now - last_realtime)) * 0.5;
@@ -413,7 +421,7 @@ bool pwmAreMotorsEnabled(void) {
 
 bool isMotorProtocolDshot(void)
 {
-    return false;
+    return true;
 }
 
 void pwmWriteMotor(uint8_t index, float value) {

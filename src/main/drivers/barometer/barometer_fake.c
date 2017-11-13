@@ -30,7 +30,7 @@
 
 static int32_t fakePressure;
 static int32_t fakeTemperature;
-
+static int32_t fakeAlt;
 
 static void fakeBaroStartGet(baroDev_t *baro)
 {
@@ -49,6 +49,17 @@ void fakeBaroSet(int32_t pressure, int32_t temperature)
 {
     fakePressure = pressure;
     fakeTemperature = temperature;
+}
+
+// in cm
+void fakeBaroSetAlt(int32_t alt)
+{
+    fakeAlt = alt;
+}
+
+int32_t fakeBaroGetAlt()
+{
+    return fakeAlt;
 }
 
 bool fakeBaroDetect(baroDev_t *baro)
