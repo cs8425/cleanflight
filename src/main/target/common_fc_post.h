@@ -29,6 +29,10 @@
 #undef USE_SERVOS
 #endif
 
+#ifndef USE_DSHOT
+#undef USE_ESC_SENSOR
+#endif
+
 // XXX Followup implicit dependencies among DASHBOARD, display_xxx and USE_I2C.
 // XXX This should eventually be cleaned up.
 #ifndef USE_I2C
@@ -52,7 +56,7 @@
 #endif
 
 #if defined(USE_MSP_OVER_TELEMETRY)
-#if !defined(TELEMETRY_SMARTPORT) && !defined(TELEMETRY_CRSF)
+#if !defined(USE_TELEMETRY_SMARTPORT) && !defined(USE_TELEMETRY_CRSF)
 #undef USE_MSP_OVER_TELEMETRY
 #endif
 #endif

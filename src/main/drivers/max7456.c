@@ -24,7 +24,12 @@
 
 #ifdef USE_MAX7456
 
+#include "build/debug.h"
+
 #include "common/printf.h"
+
+#include "config/parameter_group.h"
+#include "config/parameter_group_ids.h"
 
 #include "drivers/bus_spi.h"
 #include "drivers/dma.h"
@@ -35,6 +40,19 @@
 #include "drivers/nvic.h"
 #include "drivers/time.h"
 #include "drivers/vcd.h"
+
+#include "fc/config.h" // For systemConfig()
+
+// DEBUG_MAX7456_SIGNAL
+#define DEBUG_MAX7456_SIGNAL_MODEREG       0
+#define DEBUG_MAX7456_SIGNAL_SENSE         1
+#define DEBUG_MAX7456_SIGNAL_REINIT        2
+#define DEBUG_MAX7456_SIGNAL_ROWS          3
+
+// DEBUG_MAX7456_SPICLOCK
+#define DEBUG_MAX7456_SPICLOCK_OVERCLOCK   0
+#define DEBUG_MAX7456_SPICLOCK_DEVTYPE     1
+#define DEBUG_MAX7456_SPICLOCK_DIVISOR     2
 
 // VM0 bits
 #define VIDEO_BUFFER_DISABLE        0x01
@@ -148,12 +166,16 @@
 #define NVM_RAM_SIZE            54
 #define WRITE_NVR               0xA0
 
+// Device type
+#define MAX7456_DEVICE_TYPE_MAX 0
+#define MAX7456_DEVICE_TYPE_AT  1
+
 #define CHARS_PER_LINE      30 // XXX Should be related to VIDEO_BUFFER_CHARS_*?
 
 // On shared SPI buss we want to change clock for OSD chip and restore for other devices.
 
 #ifdef MAX7456_SPI_CLK
-    #define ENABLE_MAX7456        {spiSetDivisor(MAX7456_SPI_INSTANCE, MAX7456_SPI_CLK);IOLo(max7456CsPin);}
+    #define ENABLE_MAX7456        {spiSetDivisor(MAX7456_SPI_INSTANCE, max7456SpiClock);IOLo(max7456CsPin);}
 #else
     #define ENABLE_MAX7456        IOLo(max7456CsPin)
 #endif
@@ -163,6 +185,12 @@
 #else
     #define DISABLE_MAX7456       IOHi(max7456CsPin)
 #endif
+
+#ifndef MAX7456_SPI_CLK
+#define MAX7456_SPI_CLK           (SPI_CLOCK_STANDARD)
+#endif
+
+static uint16_t max7456SpiClock = MAX7456_SPI_CLK;
 
 uint16_t maxScreenSize = VIDEO_BUFFER_CHARS_PAL;
 
@@ -192,6 +220,15 @@ static uint8_t  vosRegValue; // VOS (Vertical offset register) value
 static bool  max7456Lock        = false;
 static bool fontIsLoading       = false;
 static IO_t max7456CsPin        = IO_NONE;
+
+static uint8_t max7456DeviceType;
+
+
+PG_REGISTER_WITH_RESET_TEMPLATE(max7456Config_t, max7456Config, PG_MAX7456_CONFIG, 0);
+
+PG_RESET_TEMPLATE(max7456Config_t, max7456Config,
+    .clockConfig = MAX7456_CLOCK_CONFIG_OC, // SPI clock based on device type and overclock state
+);
 
 
 static uint8_t max7456Send(uint8_t add, uint8_t data)
@@ -323,9 +360,7 @@ uint8_t max7456GetRowsCount(void)
 
 void max7456ReInit(void)
 {
-    uint8_t maxScreenRows;
     uint8_t srdata = 0;
-    uint16_t x;
     static bool firstInit = true;
 
     ENABLE_MAX7456;
@@ -355,17 +390,14 @@ void max7456ReInit(void)
 
     if (videoSignalReg & VIDEO_MODE_PAL) { //PAL
         maxScreenSize = VIDEO_BUFFER_CHARS_PAL;
-        maxScreenRows = VIDEO_LINES_PAL;
     } else {              // NTSC
         maxScreenSize = VIDEO_BUFFER_CHARS_NTSC;
-        maxScreenRows = VIDEO_LINES_NTSC;
     }
 
-    // Set all rows to same charactor black/white level.
-
-    for (x = 0; x < maxScreenRows; x++) {
-        max7456Send(MAX7456ADD_RB0 + x, BWBRIGHTNESS);
-    }
+    /* Set all rows to same charactor black/white level. */
+    max7456Brightness(0, 2);
+    /* Re-enable MAX7456 (last function call disables it) */
+    ENABLE_MAX7456;
 
     // Make sure the Max7456 is enabled
     max7456Send(MAX7456ADD_VM0, videoSignalReg);
@@ -376,7 +408,6 @@ void max7456ReInit(void)
     DISABLE_MAX7456;
 
     // Clear shadow to force redraw all screen in non-dma mode.
-
     memset(shadowBuffer, 0, maxScreenSize);
     if (firstInit)
     {
@@ -387,6 +418,7 @@ void max7456ReInit(void)
 
 
 // Here we init only CS and try to init MAX for first time.
+// Also detect device type (MAX v.s. AT)
 
 void max7456Init(const vcdProfile_t *pVcdProfile)
 {
@@ -399,7 +431,42 @@ void max7456Init(const vcdProfile_t *pVcdProfile)
     IOConfigGPIO(max7456CsPin, SPI_IO_CS_CFG);
     IOHi(max7456CsPin);
 
-    spiSetDivisor(MAX7456_SPI_INSTANCE, SPI_CLOCK_STANDARD);
+    // Detect device type by writing and reading CA[8] bit at CMAL[6].
+    // Do this at half the speed for safety.
+    spiSetDivisor(MAX7456_SPI_INSTANCE, MAX7456_SPI_CLK * 2);
+
+    max7456Send(MAX7456ADD_CMAL, (1 << 6)); // CA[8] bit
+
+    if (max7456Send(MAX7456ADD_CMAL|MAX7456ADD_READ, 0xff) & (1 << 6)) {
+        max7456DeviceType = MAX7456_DEVICE_TYPE_AT;
+    } else {
+        max7456DeviceType = MAX7456_DEVICE_TYPE_MAX;
+    }
+
+#if defined(STM32F4) && !defined(DISABLE_OVERCLOCK)
+    // Determine SPI clock divisor based on config and the device type.
+
+    switch (max7456Config()->clockConfig) {
+    case MAX7456_CLOCK_CONFIG_HALF:
+        max7456SpiClock = MAX7456_SPI_CLK * 2;
+        break;
+
+    case MAX7456_CLOCK_CONFIG_OC:
+        max7456SpiClock = (systemConfig()->cpu_overclock && (max7456DeviceType == MAX7456_DEVICE_TYPE_MAX)) ? MAX7456_SPI_CLK * 2 : MAX7456_SPI_CLK;
+        break;
+
+    case MAX7456_CLOCK_CONFIG_FULL:
+        max7456SpiClock = MAX7456_SPI_CLK;
+        break;
+    }
+
+    DEBUG_SET(DEBUG_MAX7456_SPICLOCK, DEBUG_MAX7456_SPICLOCK_OVERCLOCK, systemConfig()->cpu_overclock);
+    DEBUG_SET(DEBUG_MAX7456_SPICLOCK, DEBUG_MAX7456_SPICLOCK_DEVTYPE, max7456DeviceType);
+    DEBUG_SET(DEBUG_MAX7456_SPICLOCK, DEBUG_MAX7456_SPICLOCK_DIVISOR, max7456SpiClock);
+#endif
+
+    spiSetDivisor(MAX7456_SPI_INSTANCE, max7456SpiClock);
+
     // force soft reset on Max7456
     ENABLE_MAX7456;
     max7456Send(MAX7456ADD_VM0, MAX7456_RESET);
@@ -484,8 +551,6 @@ bool max7456DmaInProgress(void)
 #endif
 }
 
-#include "build/debug.h"
-
 void max7456DrawScreen(void)
 {
     uint8_t stallCheck;
@@ -495,6 +560,8 @@ void max7456DrawScreen(void)
     static uint32_t videoDetectTimeMs = 0;
     static uint16_t pos = 0;
     int k = 0, buff_len=0;
+
+    static uint16_t reInitCount = 0;
 
     if (!max7456Lock && !fontIsLoading) {
 
@@ -519,11 +586,9 @@ void max7456DrawScreen(void)
             videoSense = max7456Send(MAX7456ADD_STAT, 0x00);
             DISABLE_MAX7456;
 
-#ifdef DEBUG_MAX7456_SIGNAL
-            debug[0] = videoSignalReg & VIDEO_MODE_MASK;
-            debug[1] = videoSense & 0x7;
-            debug[3] = max7456GetRowsCount();
-#endif
+            DEBUG_SET(DEBUG_MAX7456_SIGNAL, DEBUG_MAX7456_SIGNAL_MODEREG, videoSignalReg & VIDEO_MODE_MASK);
+            DEBUG_SET(DEBUG_MAX7456_SIGNAL, DEBUG_MAX7456_SIGNAL_SENSE, videoSense & 0x7);
+            DEBUG_SET(DEBUG_MAX7456_SIGNAL, DEBUG_MAX7456_SIGNAL_ROWS, max7456GetRowsCount());
 
             if (videoSense & STAT_LOS) {
                 videoDetectTimeMs = 0;
@@ -533,9 +598,7 @@ void max7456DrawScreen(void)
                     if (videoDetectTimeMs) {
                         if (millis() - videoDetectTimeMs > VIDEO_SIGNAL_DEBOUNCE_MS) {
                             max7456ReInit();
-#ifdef DEBUG_MAX7456_SIGNAL
-                            debug[2]++;
-#endif
+                            DEBUG_SET(DEBUG_MAX7456_SIGNAL, DEBUG_MAX7456_SIGNAL_REINIT, ++reInitCount);
                         }
                     } else {
                         // Wait for signal to stabilize

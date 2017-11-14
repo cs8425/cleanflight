@@ -39,11 +39,11 @@
 
 typedef enum {
     DSHOT_CMD_MOTOR_STOP = 0,
-    DSHOT_CMD_BEEP1,
-    DSHOT_CMD_BEEP2,
-    DSHOT_CMD_BEEP3,
-    DSHOT_CMD_BEEP4,
-    DSHOT_CMD_BEEP5,
+    DSHOT_CMD_BEACON1,
+    DSHOT_CMD_BEACON2,
+    DSHOT_CMD_BEACON3,
+    DSHOT_CMD_BEACON4,
+    DSHOT_CMD_BEACON5,
     DSHOT_CMD_ESC_INFO, // V2 includes settings
     DSHOT_CMD_SPIN_DIRECTION_1,
     DSHOT_CMD_SPIN_DIRECTION_2,
@@ -108,6 +108,9 @@ typedef enum {
 typedef struct {
     TIM_TypeDef *timer;
     uint16_t timerDmaSources;
+#ifdef USE_DSHOT_DMAR
+    uint32_t dmaBurstBuffer[DSHOT_DMA_BUFFER_SIZE * 4];
+#endif
 } motorDmaTimer_t;
 
 typedef struct {
@@ -115,6 +118,7 @@ typedef struct {
     const timerHardware_t *timerHardware;
     uint16_t value;
     uint16_t timerDmaSource;
+    motorDmaTimer_t *timer;
     volatile bool requestTelemetry;
 #if defined(STM32F3) || defined(STM32F4) || defined(STM32F7)
     uint32_t dmaBuffer[DSHOT_DMA_BUFFER_SIZE];
@@ -124,6 +128,8 @@ typedef struct {
 #if defined(STM32F7)
     TIM_HandleTypeDef TimHandle;
     DMA_HandleTypeDef hdma_tim;
+    uint16_t timerDmaIndex;
+    uint8_t timerIndex;
 #endif
 } motorDmaOutput_t;
 

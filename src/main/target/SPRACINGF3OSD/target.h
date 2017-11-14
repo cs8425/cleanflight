@@ -18,7 +18,7 @@
 #pragma once
 
 #define TARGET_BOARD_IDENTIFIER "SOF3"
-#define TARGET_CONFIG
+#define USE_TARGET_CONFIG
 
 #define CONFIG_FASTLOOP_PREFERRED_ACC ACC_DEFAULT
 
@@ -27,10 +27,10 @@
 #define USE_EXTI
 
 
-#define GYRO
+#define USE_GYRO
 #define USE_FAKE_GYRO
 
-#define ACC
+#define USE_ACC
 #define USE_FAKE_ACC
 
 #define REMAP_TIM16_DMA

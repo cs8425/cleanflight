@@ -129,7 +129,6 @@ TEST(CrossFireTest, TestCrsfFrameStatus)
     EXPECT_EQ(false, crsfFrameDone);
 
     EXPECT_EQ(CRSF_ADDRESS_CRSF_RECEIVER, crsfFrame.frame.deviceAddress);
-    EXPECT_EQ(CRSF_FRAME_RC_CHANNELS_PAYLOAD_SIZE + CRSF_FRAME_LENGTH_TYPE_CRC, crsfFrame.frame.frameLength);
     EXPECT_EQ(CRSF_FRAMETYPE_RC_CHANNELS_PACKED, crsfFrame.frame.type);
     for (int ii = 0; ii < CRSF_MAX_CHANNEL; ++ii) {
         EXPECT_EQ(0, crsfChannelData[ii]);
@@ -286,7 +285,7 @@ serialPort_t *openSerialPort(serialPortIdentifier_e, serialPortFunction_e, seria
 serialPortConfig_t *findSerialPortConfig(serialPortFunction_e ) {return NULL;}
 bool telemetryCheckRxPortShared(const serialPortConfig_t *) {return false;}
 serialPort_t *telemetrySharedPort = NULL;
-void scheduleDeviceInfoResponse(void) {};
-void scheduleMspResponse(mspPackage_t *package) { UNUSED(package); };
-bool handleMspFrame(uint8_t *, uint8_t *) { return false; }
+void crsfScheduleDeviceInfoResponse(void) {};
+void crsfScheduleMspResponse(void) {};
+bool bufferMspFrame(uint8_t *, int) {return true;}
 }

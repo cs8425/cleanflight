@@ -132,6 +132,18 @@ void doTestArm(bool testEmpty = true)
 }
 
 /*
+ * Auxiliary function. Test is there're stats that must be shown
+ */
+bool isSomeStatEnabled(void) {
+    for (int i = 0; i < OSD_STAT_COUNT; i++) {
+            if (osdConfigMutable()->enabled_stats[i]) {
+                return true;
+            }
+        }
+    return false;
+}
+
+/*
  * Performs a test of the OSD actions on disarming.
  * (reused throughout the test suite)
  */
@@ -147,9 +159,10 @@ void doTestDisarm()
 
     // then
     // post flight statistics displayed
-    displayPortTestBufferSubstring(2, 2, "  --- STATS ---");
+    if (isSomeStatEnabled()) {
+        displayPortTestBufferSubstring(2, 2, "  --- STATS ---");
+    }
 }
-
 
 /*
  * Tests initialisation of the OSD and the power on splash screen.
@@ -405,11 +418,12 @@ TEST(OsdTest, TestAlarms)
 
     // and
     // the following OSD elements are visible
-    osdConfigMutable()->item_pos[OSD_RSSI_VALUE]        = OSD_POS(8, 1)  | VISIBLE_FLAG;
-    osdConfigMutable()->item_pos[OSD_MAIN_BATT_VOLTAGE] = OSD_POS(12, 1) | VISIBLE_FLAG;
-    osdConfigMutable()->item_pos[OSD_ITEM_TIMER_1]      = OSD_POS(20, 1) | VISIBLE_FLAG;
-    osdConfigMutable()->item_pos[OSD_ITEM_TIMER_2]      = OSD_POS(1, 1)  | VISIBLE_FLAG;
-    osdConfigMutable()->item_pos[OSD_ALTITUDE]          = OSD_POS(23, 7) | VISIBLE_FLAG;
+    osdConfigMutable()->item_pos[OSD_RSSI_VALUE]              = OSD_POS(8, 1)  | VISIBLE_FLAG;
+    osdConfigMutable()->item_pos[OSD_MAIN_BATT_VOLTAGE]       = OSD_POS(12, 1) | VISIBLE_FLAG;
+    osdConfigMutable()->item_pos[OSD_ITEM_TIMER_1]            = OSD_POS(20, 1) | VISIBLE_FLAG;
+    osdConfigMutable()->item_pos[OSD_ITEM_TIMER_2]            = OSD_POS(1, 1)  | VISIBLE_FLAG;
+    osdConfigMutable()->item_pos[OSD_REMAINING_TIME_ESTIMATE] = OSD_POS(1, 2) | VISIBLE_FLAG;
+    osdConfigMutable()->item_pos[OSD_ALTITUDE]                = OSD_POS(23, 7) | VISIBLE_FLAG;
 
     // and
     // this set of alarm values
@@ -464,6 +478,7 @@ TEST(OsdTest, TestAlarms)
     simulationAltitude = 12000;
     simulationTime += 60e6;
     osdRefresh(simulationTime);
+    simulationMahDrawn = 999999;
 
     // then
     // elements showing values in alarm range should flash
@@ -717,6 +732,7 @@ TEST(OsdTest, TestElementWarningsBattery)
 {
     // given
     osdConfigMutable()->item_pos[OSD_WARNINGS] = OSD_POS(9, 10) | VISIBLE_FLAG;
+    osdConfigMutable()->enabledWarnings = OSD_WARNING_BATTERY_WARNING | OSD_WARNING_BATTERY_CRITICAL | OSD_WARNING_BATTERY_NOT_FULL;
 
     // and
     batteryConfigMutable()->vbatfullcellvoltage = 41;
@@ -843,12 +859,13 @@ TEST(OsdTest, TestFormatTimeString)
 
 // STUBS
 extern "C" {
-    void beeperConfirmationBeeps(uint8_t beepCount) {
-        UNUSED(beepCount);
+    void beeperConfirmationBeeps(uint8_t) {}
+
+    bool isModeActivationConditionPresent(boxId_e) {
+        return false;
     }
 
-    bool IS_RC_MODE_ACTIVE(boxId_e boxId) {
-        UNUSED(boxId);
+    bool IS_RC_MODE_ACTIVE(boxId_e) {
         return false;
     }
 
@@ -908,18 +925,15 @@ extern "C" {
         return 0;
     }
 
-    bool isSerialTransmitBufferEmpty(const serialPort_t *instance) {
-        UNUSED(instance);
+    bool isSerialTransmitBufferEmpty(const serialPort_t *) {
         return false;
     }
 
-    void serialWrite(serialPort_t *instance, uint8_t ch) {
-        UNUSED(instance);
-        UNUSED(ch);
-    }
+    void serialWrite(serialPort_t *, uint8_t) {}
 
-    bool cmsDisplayPortRegister(displayPort_t *pDisplay) {
-        UNUSED(pDisplay);
+    bool cmsDisplayPortRegister(displayPort_t *) {
         return false;
     }
+
+    uint16_t getRssi(void) { return rssi; }
 }

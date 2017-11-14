@@ -16,8 +16,12 @@
  */
 
 
-// Get target build configuration
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "platform.h"
+
+#if defined(VTX_CONTROL) && defined(VTX_COMMON)
 
 #include "common/maths.h"
 
@@ -36,9 +40,9 @@
 #include "io/beeper.h"
 #include "io/osd.h"
 #include "io/vtx_control.h"
+#include "io/vtx.h"
 
 
-#if defined(VTX_CONTROL) && defined(VTX_COMMON)
 
 PG_REGISTER_WITH_RESET_TEMPLATE(vtxConfig_t, vtxConfig, PG_VTX_CONFIG, 1);
 
@@ -60,10 +64,9 @@ static void vtxUpdateBandAndChannel(uint8_t bandStep, uint8_t channelStep)
         locked = 1;
     }
 
-    if (!locked) {
-        uint8_t band = 0, channel = 0;
-        vtxCommonGetBandAndChannel(&band, &channel);
-        vtxCommonSetBandAndChannel(band + bandStep, channel + channelStep);
+    if (!locked && vtxCommonDeviceRegistered()) {
+        vtxSettingsConfigMutable()->band += bandStep;
+        vtxSettingsConfigMutable()->channel += channelStep;
     }
 }
 
@@ -93,7 +96,7 @@ void vtxUpdateActivatedChannel(void)
         locked = 1;
     }
 
-    if (!locked) {
+    if (!locked && vtxCommonDeviceRegistered()) {
         static uint8_t lastIndex = -1;
 
         for (uint8_t index = 0; index < MAX_CHANNEL_ACTIVATION_CONDITION_COUNT; index++) {
@@ -103,7 +106,8 @@ void vtxUpdateActivatedChannel(void)
                 && index != lastIndex) {
                 lastIndex = index;
 
-                vtxCommonSetBandAndChannel(vtxChannelActivationCondition->band, vtxChannelActivationCondition->channel);
+                vtxSettingsConfigMutable()->band = vtxChannelActivationCondition->band;
+                vtxSettingsConfigMutable()->channel = vtxChannelActivationCondition->channel;
                 break;
             }
         }
@@ -112,49 +116,54 @@ void vtxUpdateActivatedChannel(void)
 
 void vtxCycleBandOrChannel(const uint8_t bandStep, const uint8_t channelStep)
 {
-    uint8_t band = 0, channel = 0;
-    vtxDeviceCapability_t capability;
+    if (vtxCommonDeviceRegistered()) {
+        uint8_t band = 0, channel = 0;
+        vtxDeviceCapability_t capability;
 
-    bool haveAllNeededInfo = vtxCommonGetBandAndChannel(&band, &channel) && vtxCommonGetDeviceCapability(&capability);
-    if (!haveAllNeededInfo) {
-        return;
+        bool haveAllNeededInfo = vtxCommonGetBandAndChannel(&band, &channel) && vtxCommonGetDeviceCapability(&capability);
+        if (!haveAllNeededInfo) {
+            return;
+        }
+
+        int newChannel = channel + channelStep;
+        if (newChannel > capability.channelCount) {
+            newChannel = 1;
+        } else if (newChannel < 1) {
+            newChannel = capability.channelCount;
+        }
+
+        int newBand = band + bandStep;
+        if (newBand > capability.bandCount) {
+            newBand = 1;
+        } else if (newBand < 1) {
+            newBand = capability.bandCount;
+        }
+
+        vtxSettingsConfigMutable()->band = newBand;
+        vtxSettingsConfigMutable()->channel = newChannel;
     }
-
-    int newChannel = channel + channelStep;
-    if (newChannel > capability.channelCount) {
-        newChannel = 1;
-    } else if (newChannel < 1) {
-        newChannel = capability.channelCount;
-    }
-
-    int newBand = band + bandStep;
-    if (newBand > capability.bandCount) {
-        newBand = 1;
-    } else if (newBand < 1) {
-        newBand = capability.bandCount;
-    }
-
-    vtxCommonSetBandAndChannel(newBand, newChannel);
 }
 
 void vtxCyclePower(const uint8_t powerStep)
 {
-    uint8_t power = 0;
-    vtxDeviceCapability_t capability;
+    if (vtxCommonDeviceRegistered()) {
+        uint8_t power = 0;
+        vtxDeviceCapability_t capability;
 
-    bool haveAllNeededInfo = vtxCommonGetPowerIndex(&power) && vtxCommonGetDeviceCapability(&capability);
-    if (!haveAllNeededInfo) {
-        return;
+        bool haveAllNeededInfo = vtxCommonGetPowerIndex(&power) && vtxCommonGetDeviceCapability(&capability);
+        if (!haveAllNeededInfo) {
+            return;
+        }
+
+        int newPower = power + powerStep;
+        if (newPower >= capability.powerCount) {
+            newPower = 0;
+        } else if (newPower < 0) {
+            newPower = capability.powerCount;
+        }
+
+        vtxSettingsConfigMutable()->power = newPower;
     }
-
-    int newPower = power + powerStep;
-    if (newPower >= capability.powerCount) {
-        newPower = 0;
-    } else if (newPower < 0) {
-        newPower = capability.powerCount;
-    }
-
-    vtxCommonSetPowerByIndex(newPower);
 }
 
 /**
@@ -176,7 +185,6 @@ void vtxCyclePower(const uint8_t powerStep)
 void handleVTXControlButton(void)
 {
 #if defined(VTX_RTC6705) && defined(BUTTON_A_PIN)
-    bool buttonHeld;
     bool buttonWasPressed = false;
     uint32_t start = millis();
     uint32_t ledToggleAt = start;
@@ -184,6 +192,7 @@ void handleVTXControlButton(void)
     uint8_t flashesDone = 0;
 
     uint8_t actionCounter = 0;
+    bool buttonHeld;
     while ((buttonHeld = buttonAPressed())) {
         uint32_t end = millis();
 
@@ -232,21 +241,20 @@ void handleVTXControlButton(void)
     LED1_OFF;
 
     switch (actionCounter) {
-        case 4:
-            vtxCycleBandOrChannel(0, +1);
-            break;
-        case 3:
-            vtxCycleBandOrChannel(+1, 0);
-            break;
-        case 2:
-            vtxCyclePower(+1);
-            break;
-        case 1:
-            saveConfigAndNotify();
-            break;
+    case 4:
+        vtxCycleBandOrChannel(0, +1);
+        break;
+    case 3:
+        vtxCycleBandOrChannel(+1, 0);
+        break;
+    case 2:
+        vtxCyclePower(+1);
+        break;
+    case 1:
+        saveConfigAndNotify();
+        break;
     }
 #endif
 }
 
 #endif
-

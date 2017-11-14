@@ -20,25 +20,19 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "config/parameter_group.h"
+#include "platform.h"
 
-typedef struct vtxRTC6705Config_s {
-    uint8_t band;       // 1=A, 2=B, 3=E, 4=F(Airwaves/Fatshark), 5=Raceband
-    uint8_t channel;    // 1-8
-    uint8_t power;      // 0 = lowest
-} vtxRTC6705Config_t;
 
-PG_DECLARE(vtxRTC6705Config_t, vtxRTC6705Config);
-
-#ifdef RTC6705_POWER_PIN
-#define RTC6705_POWER_COUNT 3
+#define VTX_RTC6705_POWER_COUNT 3
 #define VTX_RTC6705_DEFAULT_POWER 1
+
+#if defined(RTC6705_POWER_PIN)
+#define VTX_RTC6705_MIN_POWER 0
 #else
-#define RTC6705_POWER_COUNT 2
-#define VTX_RTC6705_DEFAULT_POWER 0
+#define VTX_RTC6705_MIN_POWER 1
 #endif
 
-extern const char * const rtc6705PowerNames[RTC6705_POWER_COUNT];
+extern const char * const rtc6705PowerNames[VTX_RTC6705_POWER_COUNT];
 
 void vtxRTC6705Configure(void);
-bool vtxRTC6705Init();
+bool vtxRTC6705Init(void);

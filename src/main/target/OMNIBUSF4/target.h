@@ -15,20 +15,27 @@
 
 #pragma once
 
+#define USE_TARGET_CONFIG
+
 #if defined(OMNIBUSF4SD)
 #define TARGET_BOARD_IDENTIFIER "OBSD"
 #elif defined(LUXF4OSD)
 #define TARGET_BOARD_IDENTIFIER "LUX4"
 #elif defined(DYSF4PRO)
 #define TARGET_BOARD_IDENTIFIER "DYS4"
+#elif defined(XRACERF4)
+#define TARGET_BOARD_IDENTIFIER "XRF4"
 #else
 #define TARGET_BOARD_IDENTIFIER "OBF4"
+#define OMNIBUSF4BASE // For config.c
 #endif
 
 #if defined(LUXF4OSD)
 #define USBD_PRODUCT_STRING "LuxF4osd"
 #elif defined(DYSF4PRO)
 #define USBD_PRODUCT_STRING "DysF4Pro"
+#elif defined(XRACERF4)
+#define USBD_PRODUCT_STRING "XRACERF4"
 #else
 #define USBD_PRODUCT_STRING "OmnibusF4"
 #endif
@@ -51,10 +58,10 @@
 #define INVERTER_PIN_UART1      PC0 // PC0 used as inverter select GPIO XXX this is not used --- remove it at the next major release
 #endif
 
-#define ACC
+#define USE_ACC
 #define USE_ACC_SPI_MPU6000
 
-#define GYRO
+#define USE_GYRO
 #define USE_GYRO_SPI_MPU6000
 
 #define MPU6000_CS_PIN          PA4
@@ -68,6 +75,9 @@
 #if defined(OMNIBUSF4SD)
 #define GYRO_MPU6000_ALIGN       CW270_DEG
 #define ACC_MPU6000_ALIGN        CW270_DEG
+#elif defined(XRACERF4)
+#define GYRO_MPU6000_ALIGN       CW90_DEG
+#define ACC_MPU6000_ALIGN        CW90_DEG 
 #else
 #define GYRO_MPU6000_ALIGN       CW180_DEG
 #define ACC_MPU6000_ALIGN        CW180_DEG
@@ -85,14 +95,14 @@
 #define ACC_MPU6500_ALIGN       ACC_MPU6000_ALIGN
 #endif
 
-#define MAG
+#define USE_MAG
 #define USE_MAG_HMC5883
 #define MAG_HMC5883_ALIGN       CW90_DEG
 
 //#define USE_MAG_NAZA                   // Delete this on next major release
 //#define MAG_NAZA_ALIGN CW180_DEG_FLIP  // Ditto
 
-#define BARO
+#define USE_BARO
 #if defined(OMNIBUSF4SD)
 #define USE_BARO_SPI_BMP280
 #define BMP280_SPI_INSTANCE     SPI3
@@ -109,7 +119,7 @@
 #define DEFAULT_BARO_BMP280
 #endif
 
-#define OSD
+#define USE_OSD
 #define USE_MAX7456
 #define MAX7456_SPI_INSTANCE    SPI3
 #define MAX7456_SPI_CS_PIN      PA15
@@ -206,6 +216,7 @@
 #define I2C_DEVICE              (I2CDEV_2)
 
 #define USE_ADC
+#define ADC_INSTANCE            ADC2
 #define CURRENT_METER_ADC_PIN   PC1  // Direct from CRNT pad (part of onboard sensor for Pro)
 #define VBAT_ADC_PIN            PC2  // 11:1 (10K + 1K) divider
 #ifdef DYSF4PRO
@@ -216,7 +227,7 @@
 
 #define TRANSPONDER
 
-#define SONAR
+#define USE_SONAR
 
 #define DEFAULT_RX_FEATURE      FEATURE_RX_SERIAL
 
@@ -234,7 +245,8 @@
 
 #ifdef OMNIBUSF4SD
 #define USABLE_TIMER_CHANNEL_COUNT 15
+#define USED_TIMERS ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(10) | TIM_N(12) | TIM_N(8) | TIM_N(9))
 #else
 #define USABLE_TIMER_CHANNEL_COUNT 14
-#endif
 #define USED_TIMERS ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(12) | TIM_N(8) | TIM_N(9))
+#endif

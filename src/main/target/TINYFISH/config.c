@@ -19,7 +19,7 @@
 
 #include <platform.h>
 
-#ifdef TARGET_CONFIG
+#ifdef USE_TARGET_CONFIG
 #include "drivers/dma.h"
 #include "drivers/io.h"
 #include "drivers/timer.h"
@@ -44,7 +44,7 @@ void targetConfiguration(void)
     serialConfigMutable()->portConfigs[index].functionMask = FUNCTION_TELEMETRY_FRSKY | FUNCTION_RX_SERIAL;
 
     rxConfigMutable()->serialrx_provider = SERIALRX_SBUS;
-    rxConfigMutable()->sbus_inversion = 0;
+    rxConfigMutable()->serialrx_inverted = true;
     telemetryConfigMutable()->telemetry_inverted = true;
 }
 #endif

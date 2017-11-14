@@ -49,6 +49,7 @@
 
 #include "rx/rx.h"
 #include "rx/pwm.h"
+#include "rx/fport.h"
 #include "rx/sbus.h"
 #include "rx/spektrum.h"
 #include "rx/sumd.h"
@@ -67,7 +68,11 @@
 
 const char rcChannelLetters[] = "AERT12345678abcdefgh";
 
-uint16_t rssi = 0;                  // range: [0;1023]
+static uint16_t rssi = 0;                  // range: [0;1023]
+static bool useMspRssi = true;
+static timeUs_t lastMspRssiUpdateUs = 0;
+
+#define MSP_RSSI_TIMEOUT_US 1500000   // 1.5 sec
 
 static bool rxDataReceived = false;
 static bool rxSignalReceived = false;
@@ -125,7 +130,7 @@ void pgResetFn_rxConfig(rxConfig_t *rxConfig)
         .halfDuplex = 0,
         .serialrx_provider = SERIALRX_PROVIDER,
         .rx_spi_protocol = RX_SPI_DEFAULT_PROTOCOL,
-        .sbus_inversion = 1,
+        .serialrx_inverted = 0,
         .spektrum_bind_pin_override_ioTag = IO_TAG(SPEKTRUM_BIND_PIN),
         .spektrum_bind_plug_ioTag = IO_TAG(BINDPLUG_PIN),
         .spektrum_sat_bind = 0,
@@ -224,7 +229,7 @@ STATIC_UNIT_TESTED void rxUpdateFlightChannelStatus(uint8_t channel, bool valid)
     }
 }
 
-#ifdef SERIAL_RX
+#ifdef USE_SERIAL_RX
 bool serialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig)
 {
     bool enabled = false;
@@ -277,6 +282,11 @@ bool serialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig
         enabled = targetCustomSerialRxInit(rxConfig, rxRuntimeConfig);
         break;
 #endif
+#ifdef USE_SERIALRX_FPORT
+    case SERIALRX_FPORT:
+        enabled = fportRxInit(rxConfig, rxRuntimeConfig);
+        break;
+#endif
     default:
         enabled = false;
         break;
@@ -316,7 +326,7 @@ void rxInit(void)
         }
     }
 
-#ifdef SERIAL_RX
+#ifdef USE_SERIAL_RX
     if (feature(FEATURE_RX_SERIAL)) {
         const bool enabled = serialRxInit(rxConfig(), &rxRuntimeConfig);
         if (!enabled) {
@@ -609,6 +619,12 @@ void parseRcChannels(const char *input, rxConfig_t *rxConfig)
     }
 }
 
+void setRssiFiltered(uint16_t newRssi)
+{
+    rssi = newRssi;
+    useMspRssi = false;
+}
+
 static void updateRSSIPWM(void)
 {
     // Read value of AUX channel as rssi
@@ -620,7 +636,7 @@ static void updateRSSIPWM(void)
     }
 
     // Range of rawPwmRssi is [1000;2000]. rssi should be in [0;1023];
-    rssi = (uint16_t)((constrain(pwmRssi - 1000, 0, 1000) / 1000.0f) * 1023.0f);
+    setRssiFiltered(constrain((uint16_t)(((pwmRssi - 1000) / 1000.0f) * 1024.0f), 0, 1023));
 }
 
 static void updateRSSIADC(timeUs_t currentTimeUs)
@@ -636,38 +652,42 @@ static void updateRSSIADC(timeUs_t currentTimeUs)
     rssiUpdateAt = currentTimeUs + DELAY_50_HZ;
 
     const uint16_t adcRssiSample = adcGetChannel(ADC_RSSI);
-    const uint8_t rssiPercentage = adcRssiSample / rxConfig()->rssi_scale;
+    uint16_t rssiValue = (uint16_t)((1024.0f * adcRssiSample) / (rxConfig()->rssi_scale * 100.0f));
+    rssiValue = constrain(rssiValue, 0, 1023);
 
-    processRssi(rssiPercentage);
+    // RSSI_Invert option
+    if (rxConfig()->rssi_invert) {
+        rssiValue = 1024 - rssiValue;
+    }
+
+    setRssiUnfiltered((uint16_t)rssiValue);
 #endif
 }
 
 #define RSSI_SAMPLE_COUNT 16
 
-void processRssi(uint8_t rssiPercentage)
+void setRssiUnfiltered(uint16_t rssiValue)
 {
-    static uint8_t rssiSamples[RSSI_SAMPLE_COUNT];
+    static uint16_t rssiSamples[RSSI_SAMPLE_COUNT];
     static uint8_t rssiSampleIndex = 0;
+    static unsigned sum = 0;
 
+    sum = sum + rssiValue;
+    sum = sum - rssiSamples[rssiSampleIndex];
+    rssiSamples[rssiSampleIndex] = rssiValue;
     rssiSampleIndex = (rssiSampleIndex + 1) % RSSI_SAMPLE_COUNT;
 
-    rssiSamples[rssiSampleIndex] = rssiPercentage;
+    int16_t rssiMean = sum / RSSI_SAMPLE_COUNT;
 
-    int16_t rssiMean = 0;
-    for (int sampleIndex = 0; sampleIndex < RSSI_SAMPLE_COUNT; sampleIndex++) {
-        rssiMean += rssiSamples[sampleIndex];
+    setRssiFiltered(rssiMean);
+}
+
+void setRssiMsp(uint8_t newMspRssi)
+{
+    if (useMspRssi) {
+        rssi = ((uint16_t)newMspRssi) << 2;
+        lastMspRssiUpdateUs = micros();
     }
-
-    rssiMean = rssiMean / RSSI_SAMPLE_COUNT;
-
-    rssiMean=constrain(rssiMean, 0, 100);
-
-    // RSSI_Invert option
-    if (rxConfig()->rssi_invert) {
-        rssiMean = 100 - rssiMean;
-    }
-
-    rssi = (uint16_t)((rssiMean / 100.0f) * 1023.0f);
 }
 
 void updateRSSI(timeUs_t currentTimeUs)
@@ -677,7 +697,16 @@ void updateRSSI(timeUs_t currentTimeUs)
         updateRSSIPWM();
     } else if (feature(FEATURE_RSSI_ADC)) {
         updateRSSIADC(currentTimeUs);
+    } else if (useMspRssi) {
+        if (cmpTimeUs(micros(), lastMspRssiUpdateUs) > MSP_RSSI_TIMEOUT_US) {
+            rssi = 0;
+        }
     }
+}
+
+uint16_t getRssi(void)
+{
+    return rssi;
 }
 
 uint16_t rxGetRefreshRate(void)

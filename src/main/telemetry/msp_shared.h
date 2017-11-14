@@ -1,17 +1,18 @@
 #pragma once
 
-#include "msp/msp.h"
-#include "rx/crsf.h"
+#include "common/streambuf.h"
+#include "telemetry/crsf.h"
 #include "telemetry/smartport.h"
 
 typedef void (*mspResponseFnPtr)(uint8_t *payload);
 
+struct mspPacket_s;
 typedef struct mspPackage_s {
     sbuf_t requestFrame;
     uint8_t *requestBuffer;
     uint8_t *responseBuffer;
-    mspPacket_t *requestPacket;
-    mspPacket_t *responsePacket;
+    struct mspPacket_s *requestPacket;
+    struct mspPacket_s *responsePacket;
 } mspPackage_t;
 
 typedef union mspRxBuffer_u {
@@ -24,6 +25,6 @@ typedef union mspTxBuffer_u {
     uint8_t crsfMspTxBuffer[CRSF_MSP_TX_BUF_SIZE];
 } mspTxBuffer_t;
 
-void initSharedMsp();
-bool handleMspFrame(uint8_t *frameStart, uint8_t *frameEnd);
+void initSharedMsp(void);
+bool handleMspFrame(uint8_t *frameStart, int frameLength);
 bool sendMspReply(uint8_t payloadSize, mspResponseFnPtr responseFn);

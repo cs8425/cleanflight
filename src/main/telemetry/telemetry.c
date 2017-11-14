@@ -21,7 +21,7 @@
 
 #include "platform.h"
 
-#ifdef TELEMETRY
+#ifdef USE_TELEMETRY
 
 #include "common/utils.h"
 
@@ -55,7 +55,6 @@
 #include "telemetry/lcp.h"
 #include "telemetry/msp_shared.h"
 
-
 PG_REGISTER_WITH_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig, PG_TELEMETRY_CONFIG, 0);
 
 PG_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig,
@@ -75,35 +74,36 @@ PG_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig,
 
 void telemetryInit(void)
 {
-#ifdef TELEMETRY_FRSKY
+#ifdef USE_TELEMETRY_FRSKY
     initFrSkyTelemetry();
 #endif
-#ifdef TELEMETRY_HOTT
+#ifdef USE_TELEMETRY_HOTT
     initHoTTTelemetry();
 #endif
-#ifdef TELEMETRY_SMARTPORT
+#ifdef USE_TELEMETRY_SMARTPORT
     initSmartPortTelemetry();
 #endif
-#ifdef TELEMETRY_LTM
+#ifdef USE_TELEMETRY_LTM
     initLtmTelemetry();
 #endif
-#ifdef TELEMETRY_JETIEXBUS
+#ifdef USE_TELEMETRY_JETIEXBUS
     initJetiExBusTelemetry();
 #endif
-#ifdef TELEMETRY_MAVLINK
+#ifdef USE_TELEMETRY_MAVLINK
     initMAVLinkTelemetry();
 #endif
-#ifdef TELEMETRY_CRSF
+#ifdef USE_TELEMETRY_CRSF
     initCrsfTelemetry();
 #endif
-#ifdef TELEMETRY_SRXL
+#ifdef USE_TELEMETRY_SRXL
     initSrxlTelemetry();
 #endif
-#ifdef TELEMETRY_IBUS
+#ifdef USE_TELEMETRY_IBUS
     initIbusTelemetry();
 #endif
 #if defined(USE_MSP_OVER_TELEMETRY)
     initSharedMsp();
+    initCrsfMspBuffer();
 #endif
 #ifdef TELEMETRY_LCP
     initLcpTelemetry();
@@ -131,7 +131,7 @@ bool telemetryCheckRxPortShared(const serialPortConfig_t *portConfig)
     if (portConfig->functionMask & FUNCTION_RX_SERIAL && portConfig->functionMask & TELEMETRY_SHAREABLE_PORT_FUNCTIONS_MASK) {
         return true;
     }
-#ifdef TELEMETRY_IBUS
+#ifdef USE_TELEMETRY_IBUS
     if (   portConfig->functionMask & FUNCTION_TELEMETRY_IBUS
         && portConfig->functionMask & FUNCTION_RX_SERIAL
         && rxConfig()->serialrx_provider == SERIALRX_IBUS) {
@@ -146,31 +146,31 @@ serialPort_t *telemetrySharedPort = NULL;
 
 void telemetryCheckState(void)
 {
-#ifdef TELEMETRY_FRSKY
+#ifdef USE_TELEMETRY_FRSKY
     checkFrSkyTelemetryState();
 #endif
-#ifdef TELEMETRY_HOTT
+#ifdef USE_TELEMETRY_HOTT
     checkHoTTTelemetryState();
 #endif
-#ifdef TELEMETRY_SMARTPORT
+#ifdef USE_TELEMETRY_SMARTPORT
     checkSmartPortTelemetryState();
 #endif
-#ifdef TELEMETRY_LTM
+#ifdef USE_TELEMETRY_LTM
     checkLtmTelemetryState();
 #endif
-#ifdef TELEMETRY_JETIEXBUS
+#ifdef USE_TELEMETRY_JETIEXBUS
     checkJetiExBusTelemetryState();
 #endif
-#ifdef TELEMETRY_MAVLINK
+#ifdef USE_TELEMETRY_MAVLINK
     checkMAVLinkTelemetryState();
 #endif
-#ifdef TELEMETRY_CRSF
+#ifdef USE_TELEMETRY_CRSF
     checkCrsfTelemetryState();
 #endif
-#ifdef TELEMETRY_SRXL
+#ifdef USE_TELEMETRY_SRXL
     checkSrxlTelemetryState();
 #endif
-#ifdef TELEMETRY_IBUS
+#ifdef USE_TELEMETRY_IBUS
     checkIbusTelemetryState();
 #endif
 #ifdef TELEMETRY_LCP
@@ -180,33 +180,35 @@ void telemetryCheckState(void)
 
 void telemetryProcess(uint32_t currentTime)
 {
-#ifdef TELEMETRY_FRSKY
-    handleFrSkyTelemetry();
+#ifdef USE_TELEMETRY_FRSKY
+    handleFrSkyTelemetry(currentTime);
+#else
+    UNUSED(currentTime);
 #endif
-#ifdef TELEMETRY_HOTT
+#ifdef USE_TELEMETRY_HOTT
     handleHoTTTelemetry(currentTime);
 #else
     UNUSED(currentTime);
 #endif
-#ifdef TELEMETRY_SMARTPORT
+#ifdef USE_TELEMETRY_SMARTPORT
     handleSmartPortTelemetry();
 #endif
-#ifdef TELEMETRY_LTM
+#ifdef USE_TELEMETRY_LTM
     handleLtmTelemetry();
 #endif
-#ifdef TELEMETRY_JETIEXBUS
+#ifdef USE_TELEMETRY_JETIEXBUS
     handleJetiExBusTelemetry();
 #endif
-#ifdef TELEMETRY_MAVLINK
+#ifdef USE_TELEMETRY_MAVLINK
     handleMAVLinkTelemetry();
 #endif
-#ifdef TELEMETRY_CRSF
+#ifdef USE_TELEMETRY_CRSF
     handleCrsfTelemetry(currentTime);
 #endif
-#ifdef TELEMETRY_SRXL
+#ifdef USE_TELEMETRY_SRXL
     handleSrxlTelemetry(currentTime);
 #endif
-#ifdef TELEMETRY_IBUS
+#ifdef USE_TELEMETRY_IBUS
     handleIbusTelemetry();
 #endif
 #ifdef TELEMETRY_LCP
@@ -214,13 +216,11 @@ void telemetryProcess(uint32_t currentTime)
 #endif
 }
 
-#define TELEMETRY_FUNCTION_MASK (FUNCTION_TELEMETRY_FRSKY | FUNCTION_TELEMETRY_HOTT | FUNCTION_TELEMETRY_LTM | FUNCTION_TELEMETRY_SMARTPORT)
-
 void releaseSharedTelemetryPorts(void) {
-    serialPort_t *sharedPort = findSharedSerialPort(TELEMETRY_FUNCTION_MASK, FUNCTION_MSP);
+    serialPort_t *sharedPort = findSharedSerialPort(TELEMETRY_PORT_FUNCTIONS_MASK, FUNCTION_MSP);
     while (sharedPort) {
         mspSerialReleasePortIfAllocated(sharedPort);
-        sharedPort = findNextSharedSerialPort(TELEMETRY_FUNCTION_MASK, FUNCTION_MSP);
+        sharedPort = findNextSharedSerialPort(TELEMETRY_PORT_FUNCTIONS_MASK, FUNCTION_MSP);
     }
 }
 #endif

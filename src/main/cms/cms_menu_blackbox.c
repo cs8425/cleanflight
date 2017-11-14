@@ -26,7 +26,7 @@
 
 #include "platform.h"
 
-#if defined(CMS) && defined(BLACKBOX)
+#if defined(USE_CMS) && defined(USE_BLACKBOX)
 
 #include "build/version.h"
 
@@ -69,7 +69,7 @@ static char cmsx_BlackboxStatus[CMS_BLACKBOX_STRING_LENGTH];
 static char cmsx_BlackboxDeviceStorageUsed[CMS_BLACKBOX_STRING_LENGTH];
 static char cmsx_BlackboxDeviceStorageFree[CMS_BLACKBOX_STRING_LENGTH];
 
-static void cmsx_Blackbox_GetDeviceStatus()
+static void cmsx_Blackbox_GetDeviceStatus(void)
 {
     char * unit = "B";
 #if defined(USE_SDCARD) || defined(USE_FLASHFS)
@@ -186,11 +186,6 @@ static long cmsx_Blackbox_onExit(const OSD_Entry *self)
     return 0;
 }
 
-static long cmsx_Blackbox_FeatureWriteback(void)
-{
-    return 0;
-}
-
 static OSD_Entry cmsx_menuBlackboxEntries[] =
 {
     { "-- BLACKBOX --", OME_Label, NULL, NULL, 0},
@@ -209,11 +204,12 @@ static OSD_Entry cmsx_menuBlackboxEntries[] =
 };
 
 CMS_Menu cmsx_menuBlackbox = {
+#ifdef CMS_MENU_DEBUG
     .GUARD_text = "MENUBB",
     .GUARD_type = OME_MENU,
+#endif
     .onEnter = cmsx_Blackbox_onEnter,
     .onExit = cmsx_Blackbox_onExit,
-    .onGlobalExit = cmsx_Blackbox_FeatureWriteback,
     .entries = cmsx_menuBlackboxEntries
 };
 

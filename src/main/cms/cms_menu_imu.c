@@ -25,7 +25,7 @@
 
 #include "platform.h"
 
-#ifdef CMS
+#ifdef USE_CMS
 
 #include "build/version.h"
 
@@ -161,11 +161,12 @@ static OSD_Entry cmsx_menuPidEntries[] =
 };
 
 static CMS_Menu cmsx_menuPid = {
+#ifdef CMS_MENU_DEBUG
     .GUARD_text = "XPID",
     .GUARD_type = OME_MENU,
+#endif
     .onEnter = cmsx_PidOnEnter,
     .onExit = cmsx_PidWriteback,
-    .onGlobalExit = NULL,
     .entries = cmsx_menuPidEntries
 };
 
@@ -212,7 +213,9 @@ static OSD_Entry cmsx_menuRateProfileEntries[] =
     { "RC EXPO",     OME_FLOAT,  NULL, &(OSD_FLOAT_t) { &rateProfile.rcExpo8,    0, 100, 1, 10 }, 0 },
     { "RC YAW EXP",  OME_FLOAT,  NULL, &(OSD_FLOAT_t) { &rateProfile.rcYawExpo8, 0, 100, 1, 10 }, 0 },
 
-    { "THRPID ATT",  OME_FLOAT,  NULL, &(OSD_FLOAT_t) { &rateProfile.dynThrPID,  0, 100, 1, 10}, 0 },
+    { "THR MID",     OME_UINT8,  NULL, &(OSD_UINT8_t) { &rateProfile.thrMid8,           0,  100,  1}, 0 },
+    { "THR EXPO",    OME_UINT8,  NULL, &(OSD_UINT8_t) { &rateProfile.thrExpo8,          0,  100,  1}, 0 },
+    { "THRPID ATT",  OME_FLOAT,  NULL, &(OSD_FLOAT_t) { &rateProfile.dynThrPID,         0,  100,  1, 10}, 0 },
     { "TPA BRKPT",   OME_UINT16, NULL, &(OSD_UINT16_t){ &rateProfile.tpa_breakpoint, 1000, 2000, 10}, 0 },
 
     { "BACK", OME_Back, NULL, NULL, 0 },
@@ -220,19 +223,22 @@ static OSD_Entry cmsx_menuRateProfileEntries[] =
 };
 
 static CMS_Menu cmsx_menuRateProfile = {
+#ifdef CMS_MENU_DEBUG
     .GUARD_text = "MENURATE",
     .GUARD_type = OME_MENU,
+#endif
     .onEnter = cmsx_RateProfileOnEnter,
     .onExit = cmsx_RateProfileWriteback,
-    .onGlobalExit = NULL,
     .entries = cmsx_menuRateProfileEntries
 };
 
-static uint8_t cmsx_dtermSetpointWeight;
-static uint8_t cmsx_setpointRelaxRatio;
-static uint8_t cmsx_angleStrength;
-static uint8_t cmsx_horizonStrength;
-static uint8_t cmsx_horizonTransition;
+static uint8_t  cmsx_dtermSetpointWeight;
+static uint8_t  cmsx_setpointRelaxRatio;
+static uint8_t  cmsx_angleStrength;
+static uint8_t  cmsx_horizonStrength;
+static uint8_t  cmsx_horizonTransition;
+static uint16_t cmsx_itermAcceleratorGain;
+static uint16_t cmsx_itermThrottleThreshold;
 
 static long cmsx_profileOtherOnEnter(void)
 {
@@ -245,6 +251,9 @@ static long cmsx_profileOtherOnEnter(void)
     cmsx_angleStrength =     pidProfile->pid[PID_LEVEL].P;
     cmsx_horizonStrength =   pidProfile->pid[PID_LEVEL].I;
     cmsx_horizonTransition = pidProfile->pid[PID_LEVEL].D;
+
+    cmsx_itermAcceleratorGain   = pidProfile->itermAcceleratorGain;
+    cmsx_itermThrottleThreshold = pidProfile->itermThrottleThreshold;
 
     return 0;
 }
@@ -262,28 +271,34 @@ static long cmsx_profileOtherOnExit(const OSD_Entry *self)
     pidProfile->pid[PID_LEVEL].I = cmsx_horizonStrength;
     pidProfile->pid[PID_LEVEL].D = cmsx_horizonTransition;
 
+    pidProfile->itermAcceleratorGain   = cmsx_itermAcceleratorGain;
+    pidProfile->itermThrottleThreshold = cmsx_itermThrottleThreshold;
+
     return 0;
 }
 
 static OSD_Entry cmsx_menuProfileOtherEntries[] = {
     { "-- OTHER PP --", OME_Label, NULL, pidProfileIndexString, 0 },
 
-    { "D SETPT WT",  OME_FLOAT, NULL, &(OSD_FLOAT_t) { &cmsx_dtermSetpointWeight, 0, 255, 1, 10 }, 0 },
-    { "SETPT TRS",   OME_FLOAT, NULL, &(OSD_FLOAT_t) { &cmsx_setpointRelaxRatio,  0, 100, 1, 10 }, 0 },
-    { "ANGLE STR",   OME_UINT8, NULL, &(OSD_UINT8_t) { &cmsx_angleStrength,       0, 200, 1 }    , 0 },
-    { "HORZN STR",   OME_UINT8, NULL, &(OSD_UINT8_t) { &cmsx_horizonStrength,     0, 200, 1 }    , 0 },
-    { "HORZN TRS",   OME_UINT8, NULL, &(OSD_UINT8_t) { &cmsx_horizonTransition,   0, 200, 1 }    , 0 },
+    { "D SETPT WT",  OME_FLOAT,  NULL, &(OSD_FLOAT_t)  { &cmsx_dtermSetpointWeight,    0,    255,   1, 10 }, 0 },
+    { "SETPT TRS",   OME_FLOAT,  NULL, &(OSD_FLOAT_t)  { &cmsx_setpointRelaxRatio,     0,    100,   1, 10 }, 0 },
+    { "ANGLE STR",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_angleStrength,          0,    200,   1 }    , 0 },
+    { "HORZN STR",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_horizonStrength,        0,    200,   1 }    , 0 },
+    { "HORZN TRS",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_horizonTransition,      0,    200,   1 }    , 0 },
+    { "AG GAIN",     OME_UINT16, NULL, &(OSD_UINT16_t) { &cmsx_itermAcceleratorGain,   1000, 30000, 1 }    , 0 },
+    { "AG THR",      OME_UINT16, NULL, &(OSD_UINT16_t) { &cmsx_itermThrottleThreshold, 20,   1000,  1 }    , 0 },
 
     { "BACK", OME_Back, NULL, NULL, 0 },
     { NULL, OME_END, NULL, NULL, 0 }
 };
 
 static CMS_Menu cmsx_menuProfileOther = {
+#ifdef CMS_MENU_DEBUG
     .GUARD_text = "XPROFOTHER",
     .GUARD_type = OME_MENU,
+#endif
     .onEnter = cmsx_profileOtherOnEnter,
     .onExit = cmsx_profileOtherOnExit,
-    .onGlobalExit = NULL,
     .entries = cmsx_menuProfileOtherEntries,
 };
 
@@ -332,11 +347,12 @@ static OSD_Entry cmsx_menuFilterGlobalEntries[] =
 };
 
 static CMS_Menu cmsx_menuFilterGlobal = {
+#ifdef CMS_MENU_DEBUG
     .GUARD_text = "XFLTGLB",
     .GUARD_type = OME_MENU,
+#endif
     .onEnter = cmsx_menuGyro_onEnter,
     .onExit = cmsx_menuGyro_onExit,
-    .onGlobalExit = NULL,
     .entries = cmsx_menuFilterGlobalEntries,
 };
 
@@ -383,11 +399,12 @@ static OSD_Entry cmsx_menuFilterPerProfileEntries[] =
 };
 
 static CMS_Menu cmsx_menuFilterPerProfile = {
+#ifdef CMS_MENU_DEBUG
     .GUARD_text = "XFLTPP",
     .GUARD_type = OME_MENU,
+#endif
     .onEnter = cmsx_FilterPerProfileRead,
     .onExit = cmsx_FilterPerProfileWriteback,
-    .onGlobalExit = NULL,
     .entries = cmsx_menuFilterPerProfileEntries,
 };
 
@@ -452,11 +469,12 @@ static OSD_Entry cmsx_menuCopyProfileEntries[] =
 };
 
 CMS_Menu cmsx_menuCopyProfile = {
+#ifdef CMS_MENU_DEBUG
     .GUARD_text = "XCPY",
     .GUARD_type = OME_MENU,
+#endif
     .onEnter = cmsx_menuCopyProfile_onEnter,
     .onExit = NULL,
-    .onGlobalExit = NULL,
     .entries = cmsx_menuCopyProfileEntries,
 };
 
@@ -484,11 +502,12 @@ static OSD_Entry cmsx_menuImuEntries[] =
 };
 
 CMS_Menu cmsx_menuImu = {
+#ifdef CMS_MENU_DEBUG
     .GUARD_text = "XIMU",
     .GUARD_type = OME_MENU,
+#endif
     .onEnter = cmsx_menuImu_onEnter,
     .onExit = cmsx_menuImu_onExit,
-    .onGlobalExit = NULL,
     .entries = cmsx_menuImuEntries,
 };
 

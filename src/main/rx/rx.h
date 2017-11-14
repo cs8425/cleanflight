@@ -18,7 +18,10 @@
 #pragma once
 
 #include "common/time.h"
+
 #include "config/parameter_group.h"
+
+#include "drivers/io_types.h"
 
 #define STICK_CHANNEL_COUNT 4
 
@@ -57,6 +60,7 @@ typedef enum {
     SERIALRX_CRSF = 9,
     SERIALRX_SRXL = 10,
     SERIALRX_TARGET_CUSTOM = 11,
+    SERIALRX_FPORT = 12,
 } SerialRXType;
 
 #define MAX_SUPPORTED_RC_PPM_CHANNEL_COUNT          12
@@ -71,8 +75,6 @@ typedef enum {
 #else
 #define MAX_SUPPORTED_RX_PARALLEL_PWM_OR_PPM_CHANNEL_COUNT MAX_SUPPORTED_RC_PPM_CHANNEL_COUNT
 #endif
-
-extern uint16_t rssi;
 
 extern const char rcChannelLetters[];
 
@@ -117,7 +119,7 @@ PG_DECLARE_ARRAY(rxChannelRangeConfig_t, NON_AUX_CHANNEL_COUNT, rxChannelRangeCo
 typedef struct rxConfig_s {
     uint8_t rcmap[RX_MAPPABLE_CHANNEL_COUNT];  // mapping of radio channels to internal RPYTA+ order
     uint8_t serialrx_provider;              // type of UART-based receiver (0 = spek 10, 1 = spek 11, 2 = sbus). Must be enabled by FEATURE_RX_SERIAL first.
-    uint8_t sbus_inversion;                 // default sbus (Futaba, FrSKY) is inverted. Support for uninverted OpenLRS (and modified FrSKY) receivers.
+    uint8_t serialrx_inverted;              // invert the serial RX protocol compared to it's default setting
     uint8_t halfDuplex;                     // allow rx to operate in half duplex mode on F4, ignored for F1 and F3.
     uint8_t rx_spi_protocol;                // type of SPI RX protocol
                                             // nrf24: 0 = v202 250kbps. (Must be enabled by FEATURE_RX_NRF24 first.)
@@ -167,8 +169,11 @@ void calculateRxChannelsAndUpdateFailsafe(timeUs_t currentTimeUs);
 
 void parseRcChannels(const char *input, rxConfig_t *rxConfig);
 
+void setRssiFiltered(uint16_t newRssi);
+void setRssiUnfiltered(uint16_t rssiValue);
+void setRssiMsp(uint8_t newMspRssi);
 void updateRSSI(timeUs_t currentTimeUs);
-void processRssi(uint8_t rssiPercentage);
+uint16_t getRssi(void);
 
 void resetAllRxChannelRangeConfigurations(rxChannelRangeConfig_t *rxChannelRangeConfig);
 
@@ -176,3 +181,4 @@ void suspendRxSignal(void);
 void resumeRxSignal(void);
 
 uint16_t rxGetRefreshRate(void);
+

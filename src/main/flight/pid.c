@@ -34,6 +34,7 @@
 #include "config/parameter_group_ids.h"
 
 #include "drivers/sound_beeper.h"
+#include "drivers/time.h"
 
 #include "fc/fc_core.h"
 #include "fc/fc_rc.h"
@@ -51,6 +52,8 @@
 
 uint32_t targetPidLooptime;
 static bool pidStabilisationEnabled;
+
+static bool inCrashRecoveryMode = false;
 
 float axisPID_P[3], axisPID_I[3], axisPID_D[3];
 
@@ -169,6 +172,14 @@ typedef union dtermFilterLpf_u {
 void pidInitFilters(const pidProfile_t *pidProfile)
 {
     BUILD_BUG_ON(FD_YAW != 2); // only setting up Dterm filters on roll and pitch axes, so ensure yaw axis is 2
+
+    if (targetPidLooptime == 0) {
+        // no looptime set, so set all the filters to null
+        dtermNotchFilterApplyFn = nullFilterApply;
+        dtermLpfApplyFn = nullFilterApply;
+        ptermYawFilterApplyFn = nullFilterApply;
+        return;
+    }
 
     const uint32_t pidFrequencyNyquist = (1.0f / dT) / 2; // No rounding needed
 
@@ -289,7 +300,6 @@ void pidInit(const pidProfile_t *pidProfile)
     pidSetTargetLooptime(gyro.targetLooptime * pidConfig()->pid_process_denom); // Initialize pid looptime
     pidInitFilters(pidProfile);
     pidInitConfig(pidProfile);
-    pidInitMixer(pidProfile);
 }
 
 
@@ -362,7 +372,7 @@ static float pidLevel(int axis, const pidProfile_t *pidProfile, const rollAndPit
     // calculate error angle and limit the angle to the max inclination
     // rcDeflection is in range [-1.0, 1.0]
     float angle = pidProfile->levelAngleLimit * getRcDeflection(axis);
-#ifdef GPS
+#ifdef USE_GPS
     angle += GPS_angle[axis];
 #endif
     angle = constrainf(angle, -pidProfile->levelAngleLimit, pidProfile->levelAngleLimit);
@@ -399,8 +409,12 @@ void pidController(const pidProfile_t *pidProfile, const rollAndPitchTrims_t *an
     static float previousRateError[2];
     const float tpaFactor = getThrottlePIDAttenuation();
     const float motorMixRange = getMotorMixRange();
-    static bool inCrashRecoveryMode = false;
     static timeUs_t crashDetectedAtUs;
+    static timeUs_t previousTime;
+
+    // calculate actual deltaT
+    const float deltaT = currentTimeUs - previousTime;
+    previousTime = currentTimeUs;
 
     // Dynamic ki component to gradually scale back integration when above windup point
     const float dynKi = MIN((1.0f - motorMixRange) * ITermWindupPointInv, 1.0f);
@@ -483,7 +497,7 @@ void pidController(const pidProfile_t *pidProfile, const rollAndPitchTrims_t *an
 
         // -----calculate I component
         const float ITerm = axisPID_I[axis];
-        const float ITermNew = constrainf(ITerm + Ki[axis] * errorRate * dT * dynKi * itermAccelerator, -itermLimit, itermLimit);
+        const float ITermNew = constrainf(ITerm + Ki[axis] * errorRate * deltaT * dynKi * itermAccelerator, -itermLimit, itermLimit);
         const bool outputSaturated = mixerIsOutputSaturated(axis, errorRate);
         if (outputSaturated == false || ABS(ITermNew) < ABS(ITerm)) {
             // Only increase ITerm if output is not saturated
@@ -501,26 +515,31 @@ void pidController(const pidProfile_t *pidProfile, const rollAndPitchTrims_t *an
                 dynC = dtermSetpointWeight * MIN(getRcDeflectionAbs(axis) * relaxFactor, 1.0f);
             }
             const float rD = dynC * currentPidSetpoint - gyroRateFiltered;    // cr - y
-            // Divide rate change by dT to get differential (ie dr/dt)
-            float delta = (rD - previousRateError[axis]) / dT;
+            // Divide rate change by deltaT to get differential (ie dr/dt)
+            float delta = (rD - previousRateError[axis]) / deltaT;
 
             previousRateError[axis] = rD;
 
             // if crash recovery is on and accelerometer enabled then check for a crash
-            if (pidProfile->crash_recovery && ARMING_FLAG(ARMED)) {
-                if (motorMixRange >= 1.0f && inCrashRecoveryMode == false
+            if (pidProfile->crash_recovery) {
+                if (ARMING_FLAG(ARMED)) {
+                    if (motorMixRange >= 1.0f && !inCrashRecoveryMode
                         && ABS(delta) > crashDtermThreshold
                         && ABS(errorRate) > crashGyroThreshold
                         && ABS(getSetpointRate(axis)) < crashSetpointThreshold) {
-                    inCrashRecoveryMode = true;
-                    crashDetectedAtUs = currentTimeUs;
-                }
-                if (cmpTimeUs(currentTimeUs, crashDetectedAtUs) < crashTimeDelayUs && (ABS(errorRate) < crashGyroThreshold
-                    || ABS(getSetpointRate(axis)) > crashSetpointThreshold)) {
+                        inCrashRecoveryMode = true;
+                        crashDetectedAtUs = currentTimeUs;
+                    }
+                    if (inCrashRecoveryMode && cmpTimeUs(currentTimeUs, crashDetectedAtUs) < crashTimeDelayUs && (ABS(errorRate) < crashGyroThreshold
+                        || ABS(getSetpointRate(axis)) > crashSetpointThreshold)) {
+                        inCrashRecoveryMode = false;
+                        BEEP_OFF;
+                    }
+                } else if (inCrashRecoveryMode) {
                     inCrashRecoveryMode = false;
+                    BEEP_OFF;
                 }
             }
-
             axisPID_D[axis] = Kd[axis] * delta * tpaFactor;
         }
 
@@ -531,4 +550,9 @@ void pidController(const pidProfile_t *pidProfile, const rollAndPitchTrims_t *an
             axisPID_D[axis] = 0;
         }
     }
+}
+
+bool crashRecoveryModeActive(void)
+{
+	return inCrashRecoveryMode;
 }

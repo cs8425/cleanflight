@@ -31,7 +31,7 @@
 
 #include "platform.h"
 
-#ifdef CMS
+#ifdef USE_CMS
 
 #include "build/build_config.h"
 #include "build/debug.h"
@@ -61,6 +61,7 @@
 
 // For VISIBLE*
 #include "io/osd.h"
+#include "io/rcdevice_cam.h"
 
 #include "rx/rx.h"
 
@@ -316,7 +317,7 @@ static int cmsDrawMenuEntry(displayPort_t *pDisplay, OSD_Entry *p, uint8_t row)
         }
         break;
 
-#ifdef OSD
+#ifdef USE_OSD
     case OME_VISIBLE:
         if (IS_PRINTVALUE(p) && p->data) {
             uint16_t *val = (uint16_t *)p->data;
@@ -491,7 +492,7 @@ static void cmsDrawMenu(displayPort_t *pDisplay, uint32_t currentTimeUs)
 
 static void cmsMenuCountPage(displayPort_t *pDisplay)
 {
-    OSD_Entry *p;
+    const OSD_Entry *p;
     for (p = currentCtx.menu->entries; p->type != OME_END; p++);
     pageCount = (p - currentCtx.menu->entries - 1) / MAX_MENU_ITEMS(pDisplay) + 1;
 }
@@ -500,7 +501,7 @@ STATIC_UNIT_TESTED long cmsMenuBack(displayPort_t *pDisplay); // Forward; will b
 
 long cmsMenuChange(displayPort_t *pDisplay, const void *ptr)
 {
-    CMS_Menu *pMenu = (CMS_Menu *)ptr;
+    const CMS_Menu *pMenu = (const CMS_Menu *)ptr;
 
     if (!pMenu) {
         return 0;
@@ -604,9 +605,6 @@ static void cmsTraverseGlobalExit(const CMS_Menu *pMenu)
         }
     }
 
-    if (pMenu->onGlobalExit) {
-        pMenu->onGlobalExit();
-    }
 }
 
 long cmsMenuExit(displayPort_t *pDisplay, const void *ptr)
@@ -755,7 +753,7 @@ STATIC_UNIT_TESTED uint16_t cmsHandleKey(displayPort_t *pDisplay, uint8_t key)
             }
             break;
 
-#ifdef OSD
+#ifdef USE_OSD
         case OME_VISIBLE:
             if (p->data) {
                 uint16_t *val = (uint16_t *)p->data;
@@ -887,6 +885,12 @@ uint16_t cmsHandleKeyWithRepeat(displayPort_t *pDisplay, uint8_t key, int repeat
 
 void cmsUpdate(uint32_t currentTimeUs)
 {
+#ifdef USE_RCDEVICE
+    if(rcdeviceInMenu) {
+        return ;
+    }
+#endif
+
     static int16_t rcDelayMs = BUTTON_TIME;
     static int holdCount = 1;
     static int repeatCount = 1;
@@ -999,6 +1003,8 @@ void cmsHandler(timeUs_t currentTimeUs)
 {
     if (cmsDeviceCount < 0)
         return;
+
+
 
     static timeUs_t lastCalledUs = 0;
 

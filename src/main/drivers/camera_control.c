@@ -56,6 +56,9 @@
 #define CAMERA_CONTROL_PIN NONE
 #endif
 
+#ifdef USE_OSD
+#include "io/osd.h"
+#endif
 
 PG_REGISTER_WITH_RESET_TEMPLATE(cameraControlConfig_t, cameraControlConfig, PG_CAMERA_CONTROL_CONFIG, 0);
 
@@ -77,14 +80,14 @@ static struct {
 static uint32_t endTimeMillis;
 
 #ifdef CAMERA_CONTROL_SOFTWARE_PWM_AVAILABLE
-void TIM6_DAC_IRQHandler()
+void TIM6_DAC_IRQHandler(void)
 {
     IOHi(cameraControlRuntime.io);
 
     TIM6->SR = 0;
 }
 
-void TIM7_IRQHandler()
+void TIM7_IRQHandler(void)
 {
     IOLo(cameraControlRuntime.io);
 
@@ -92,7 +95,7 @@ void TIM7_IRQHandler()
 }
 #endif
 
-void cameraControlInit()
+void cameraControlInit(void)
 {
     if (cameraControlConfig()->ioTag == IO_TAG_NONE)
         return;
@@ -108,10 +111,10 @@ void cameraControlInit()
             return;
         }
 
-        #ifdef USE_HAL_DRIVER
-        IOConfigGPIOAF(cameraControlRuntime.io, IOCFG_AF_PP, timerHardware->alternateFunction);
+        #ifdef STM32F1
+            IOConfigGPIO(cameraControlRuntime.io, IOCFG_AF_PP);
         #else
-        IOConfigGPIO(cameraControlRuntime.io, IOCFG_AF_PP);
+            IOConfigGPIOAF(cameraControlRuntime.io, IOCFG_AF_PP, timerHardware->alternateFunction);
         #endif
 
         pwmOutConfig(&cameraControlRuntime.channel, timerHardware, CAMERA_CONTROL_TIMER_HZ, CAMERA_CONTROL_PWM_RESOLUTION, 0, 0);
@@ -188,6 +191,11 @@ void cameraControlKeyPress(cameraControlKey_e key, uint32_t holdDurationMs)
     const float dutyCycle = calculatePWMDutyCycle(key);
 #else
     (void) holdDurationMs;
+#endif
+
+#ifdef USE_OSD
+    // Force OSD timeout so we are alone on the display.
+    resumeRefreshAt = 0;
 #endif
 
     if (CAMERA_CONTROL_MODE_HARDWARE_PWM == cameraControlConfig()->mode) {

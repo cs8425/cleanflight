@@ -72,11 +72,12 @@
 
 #include "fc/config.h"
 #include "fc/fc_init.h"
-#include "fc/fc_msp.h"
 #include "fc/fc_tasks.h"
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
-#include "fc/cli.h"
+
+#include "interface/cli.h"
+#include "interface/msp.h"
 
 #include "msp/msp_serial.h"
 
@@ -86,6 +87,7 @@
 
 #include "io/beeper.h"
 #include "io/displayport_max7456.h"
+#include "io/displayport_rcdevice.h"
 #include "io/serial.h"
 #include "io/flashfs.h"
 #include "io/gps.h"
@@ -99,6 +101,7 @@
 #include "io/osd.h"
 #include "io/osd_slave.h"
 #include "io/displayport_msp.h"
+#include "io/vtx.h"
 #include "io/vtx_rtc6705.h"
 #include "io/vtx_control.h"
 #include "io/vtx_smartaudio.h"
@@ -126,7 +129,7 @@
 #include "flight/pid.h"
 #include "flight/servos.h"
 
-#include "io/rcsplit.h"
+#include "io/rcdevice_cam.h"
 
 #ifdef USE_HARDWARE_REVISION_DETECTION
 #include "hardware_revision.h"
@@ -213,7 +216,7 @@ void spiPreInit(void)
     spiPreInitCs(IO_TAG(L3GD20_CS_PIN));
 #endif
 #ifdef USE_MAX7456
-    spiPreInitCs(IO_TAG(MAX7456_SPI_CS_PIN));
+    spiPreInitCsOutPU(IO_TAG(MAX7456_SPI_CS_PIN)); // XXX 3.2 workaround for Kakute F4. See comment for spiPreInitCSOutPU.
 #endif
 #ifdef USE_SDCARD
     spiPreInitCs(IO_TAG(SDCARD_SPI_CS_PIN));
@@ -259,7 +262,7 @@ void init(void)
     detectHardwareRevision();
 #endif
 
-#ifdef BRUSHED_ESC_AUTODETECT
+#ifdef USE_BRUSHED_ESC_AUTODETECT
     detectBrushedESC();
 #endif
 
@@ -268,24 +271,10 @@ void init(void)
     ensureEEPROMContainsValidData();
     readEEPROM();
 
-    /* TODO: Check to be removed when moving to generic targets */
+    // !!TODO: Check to be removed when moving to generic targets
     if (strncasecmp(systemConfig()->boardIdentifier, TARGET_BOARD_IDENTIFIER, sizeof(TARGET_BOARD_IDENTIFIER))) {
-       resetEEPROM();
+        resetEEPROM();
     }
-
-#if defined(STM32F4) && !defined(DISABLE_OVERCLOCK)
-    // If F4 Overclocking is set and System core clock is not correct a reset is forced
-    if (systemConfig()->cpu_overclock && SystemCoreClock != OC_FREQUENCY_HZ) {
-        *((uint32_t *)0x2001FFF8) = 0xBABEFACE; // 128KB SRAM STM32F4XX
-        __disable_irq();
-        NVIC_SystemReset();
-    } else if (!systemConfig()->cpu_overclock && SystemCoreClock == OC_FREQUENCY_HZ) {
-        *((uint32_t *)0x2001FFF8) = 0x0;        // 128KB SRAM STM32F4XX
-        __disable_irq();
-        NVIC_SystemReset();
-    }
-
-#endif
 
     systemState |= SYSTEM_STATE_CONFIG_LOADED;
 
@@ -309,7 +298,7 @@ void init(void)
     EXTIInit();
 #endif
 
-#if defined(BUTTONS)
+#if defined(USE_BUTTONS)
 
     buttonsInit();
 
@@ -351,6 +340,20 @@ void init(void)
     }
 #endif
 
+#if defined(STM32F4) && !defined(DISABLE_OVERCLOCK)
+    // If F4 Overclocking is set and System core clock is not correct a reset is forced
+    if (systemConfig()->cpu_overclock && SystemCoreClock != OC_FREQUENCY_HZ) {
+        *((uint32_t *)0x2001FFF8) = 0xBABEFACE; // 128KB SRAM STM32F4XX
+        __disable_irq();
+        NVIC_SystemReset();
+    } else if (!systemConfig()->cpu_overclock && SystemCoreClock == OC_FREQUENCY_HZ) {
+        *((uint32_t *)0x2001FFF8) = 0x0;        // 128KB SRAM STM32F4XX
+        __disable_irq();
+        NVIC_SystemReset();
+    }
+
+#endif
+
     delay(100);
 
     timerInit();  // timer must be initialized before any channel is allocated
@@ -377,30 +380,21 @@ void init(void)
 #endif
 
     mixerInit(mixerConfig()->mixerMode);
-#ifdef USE_SERVOS
-    servosInit();
-#endif
+    mixerConfigureOutput();
 
     uint16_t idlePulse = motorConfig()->mincommand;
     if (feature(FEATURE_3D)) {
         idlePulse = flight3DConfig()->neutral3d;
     }
-
     if (motorConfig()->dev.motorPwmProtocol == PWM_TYPE_BRUSHED) {
         featureClear(FEATURE_3D);
         idlePulse = 0; // brushed motors
     }
-
-    mixerConfigureOutput();
+    /* Motors needs to be initialized soon as posible because hardware initialization
+     * may send spurious pulses to esc's causing their early initialization. Also ppm
+     * receiver may share timer with motors so motors MUST be initialized here. */
     motorDevInit(&motorConfig()->dev, idlePulse, getMotorCount());
-
-#ifdef USE_SERVOS
-    servoConfigureOutput();
-    if (isMixerUsingServos()) {
-        //pwm_params.useChannelForwarding = feature(FEATURE_CHANNEL_FORWARDING);
-        servoDevInit(&servoConfig()->dev);
-    }
-#endif
+    systemState |= SYSTEM_STATE_MOTORS_READY;
 
     if (0) {}
 #if defined(USE_PPM)
@@ -413,8 +407,6 @@ void init(void)
         pwmRxInit(pwmConfig());
     }
 #endif
-
-    systemState |= SYSTEM_STATE_MOTORS_READY;
 
 #ifdef BEEPER
     beeperInit(beeperDevConfig());
@@ -446,7 +438,7 @@ void init(void)
 #ifdef USE_SPI_DEVICE_4
     spiInit(SPIDEV_4);
 #endif
-#endif /* USE_SPI */
+#endif // USE_SPI
 
 #ifdef USE_I2C
     i2cHardwareConfigure();
@@ -466,9 +458,9 @@ void init(void)
 #ifdef USE_I2C_DEVICE_4
     i2cInit(I2CDEV_4);
 #endif
-#endif /* USE_I2C */
+#endif // USE_I2C
 
-#endif /* TARGET_BUS_INIT */
+#endif // TARGET_BUS_INIT
 
 #ifdef USE_HARDWARE_REVISION_DETECTION
     updateHardwareRevision();
@@ -482,13 +474,13 @@ void init(void)
     cameraControlInit();
 #endif
 
-#if defined(SONAR_SOFTSERIAL2_EXCLUSIVE) && defined(SONAR) && defined(USE_SOFTSERIAL2)
+#if defined(SONAR_SOFTSERIAL2_EXCLUSIVE) && defined(USE_SONAR) && defined(USE_SOFTSERIAL2)
     if (feature(FEATURE_SONAR) && feature(FEATURE_SOFTSERIAL)) {
         serialRemovePort(SERIAL_PORT_SOFTSERIAL2);
     }
 #endif
 
-#if defined(SONAR_SOFTSERIAL1_EXCLUSIVE) && defined(SONAR) && defined(USE_SOFTSERIAL1)
+#if defined(SONAR_SOFTSERIAL1_EXCLUSIVE) && defined(USE_SONAR) && defined(USE_SOFTSERIAL1)
     if (feature(FEATURE_SONAR) && feature(FEATURE_SOFTSERIAL)) {
         serialRemovePort(SERIAL_PORT_SOFTSERIAL1);
     }
@@ -513,6 +505,22 @@ void init(void)
 
     systemState |= SYSTEM_STATE_SENSORS_READY;
 
+    // gyro.targetLooptime set in sensorsAutodetect(),
+    // so we are ready to call validateAndFixGyroConfig(), pidInit(), and setAccelerationFilter()
+    validateAndFixGyroConfig();
+    pidInit(currentPidProfile);
+    setAccelerationFilter(accelerometerConfig()->acc_lpf_hz);
+
+#ifdef USE_SERVOS
+    servosInit();
+    servoConfigureOutput();
+    if (isMixerUsingServos()) {
+        //pwm_params.useChannelForwarding = feature(FEATURE_CHANNEL_FORWARDING);
+        servoDevInit(&servoConfig()->dev);
+    }
+    servosFilterInit();
+#endif
+
     LED1_ON;
     LED0_OFF;
     LED2_OFF;
@@ -528,16 +536,9 @@ void init(void)
     LED0_OFF;
     LED1_OFF;
 
-    // gyro.targetLooptime set in sensorsAutodetect(), so we are ready to call pidInit()
-    pidInit(currentPidProfile);
-
-#ifdef USE_SERVOS
-    servosFilterInit();
-#endif
-
     imuInit();
 
-    mspFcInit();
+    mspInit();
     mspSerialInit();
 
 #ifdef USE_CLI
@@ -551,15 +552,15 @@ void init(void)
 /*
  * CMS, display devices and OSD
  */
-#ifdef CMS
+#ifdef USE_CMS
     cmsInit();
 #endif
 
-#if (defined(OSD) || (defined(USE_MSP_DISPLAYPORT) && defined(CMS)) || defined(USE_OSD_SLAVE))
+#if (defined(USE_OSD) || (defined(USE_MSP_DISPLAYPORT) && defined(USE_CMS)) || defined(USE_OSD_SLAVE))
     displayPort_t *osdDisplayPort = NULL;
 #endif
 
-#if defined(OSD) && !defined(USE_OSD_SLAVE)
+#if defined(USE_OSD) && !defined(USE_OSD_SLAVE)
     //The OSD need to be initialised after GYRO to avoid GYRO initialisation failure on some targets
 
     if (feature(FEATURE_OSD)) {
@@ -574,7 +575,7 @@ void init(void)
     }
 #endif
 
-#if defined(USE_OSD_SLAVE) && !defined(OSD)
+#if defined(USE_OSD_SLAVE) && !defined(USE_OSD)
 #if defined(USE_MAX7456)
     // If there is a max7456 chip for the OSD then use it
     osdDisplayPort = max7456DisplayPortInit(vcdProfile());
@@ -583,7 +584,7 @@ void init(void)
 #endif
 #endif
 
-#if defined(CMS) && defined(USE_MSP_DISPLAYPORT)
+#if defined(USE_CMS) && defined(USE_MSP_DISPLAYPORT)
     // If BFOSD is not active, then register MSP_DISPLAYPORT as a CMS device.
     if (!osdDisplayPort)
         cmsDisplayPortRegister(displayPortMspInit());
@@ -597,14 +598,14 @@ void init(void)
 #endif
 
 
-#ifdef GPS
+#ifdef USE_GPS
     if (feature(FEATURE_GPS)) {
         gpsInit();
         navigationInit();
     }
 #endif
 
-#ifdef LED_STRIP
+#ifdef USE_LED_STRIP
     ledStripInit();
 
     if (feature(FEATURE_LED_STRIP)) {
@@ -612,7 +613,7 @@ void init(void)
     }
 #endif
 
-#ifdef TELEMETRY
+#ifdef USE_TELEMETRY
     if (feature(FEATURE_TELEMETRY)) {
         telemetryInit();
     }
@@ -651,7 +652,7 @@ void init(void)
     }
 #endif
 
-#ifdef BLACKBOX
+#ifdef USE_BLACKBOX
     blackboxInit();
 #endif
 
@@ -659,14 +660,17 @@ void init(void)
         accSetCalibrationCycles(CALIBRATING_ACC_CYCLES);
     }
     gyroStartCalibration(false);
-#ifdef BARO
+#ifdef USE_BARO
     baroSetCalibrationCycles(CALIBRATING_BARO_CYCLES);
 #endif
 
 #ifdef VTX_CONTROL
     vtxControlInit();
 
+#if defined(VTX_COMMON)
     vtxCommonInit();
+    vtxInit();
+#endif
 
 #ifdef VTX_SMARTAUDIO
     vtxSmartAudioInit();
@@ -677,7 +681,7 @@ void init(void)
 #endif
 
 #ifdef VTX_RTC6705
-#ifdef VTX_RTC6705OPTIONAL
+#ifdef VTX_RTC6705_OPTIONAL
     if (!vtxCommonDeviceRegistered()) // external VTX takes precedence when configured.
 #endif
     {
@@ -719,21 +723,17 @@ void init(void)
     LED2_ON;
 #endif
 
+#ifdef USE_RCDEVICE
+    rcdeviceInit();
+#endif // USE_RCDEVICE
+
     // Latch active features AGAIN since some may be modified by init().
     latchActiveFeatures();
     pwmEnableMotors();
 
     setArmingDisabled(ARMING_DISABLED_BOOT_GRACE_TIME);
 
-#ifdef USE_OSD_SLAVE
-    osdSlaveTasksInit();
-#else
     fcTasksInit();
-#endif
-
-#ifdef USE_RCSPLIT
-    rcSplitInit();
-#endif // USE_RCSPLIT
 
     systemState |= SYSTEM_STATE_READY;
 }

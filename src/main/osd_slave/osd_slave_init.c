@@ -54,12 +54,13 @@
 #include "drivers/transponder_ir.h"
 #include "drivers/usb_io.h"
 
-#include "fc/cli.h"
 #include "fc/config.h"
 #include "fc/rc_controls.h"
-#include "fc/fc_msp.h"
 #include "fc/fc_tasks.h"
 #include "fc/runtime_config.h"
+
+#include "interface/cli.h"
+#include "interface/msp.h"
 
 #include "msp/msp_serial.h"
 
@@ -244,7 +245,7 @@ void init(void)
     LED0_OFF;
     LED1_OFF;
 
-    mspOsdSlaveInit();
+    mspInit();
     mspSerialInit();
 
 #ifdef USE_CLI
@@ -260,7 +261,7 @@ void init(void)
     osdSlaveInit(osdDisplayPort);
 #endif
 
-#ifdef LED_STRIP
+#ifdef USE_LED_STRIP
     ledStripInit();
 
     if (feature(FEATURE_LED_STRIP)) {
@@ -287,7 +288,7 @@ void init(void)
     // Latch active features AGAIN since some may be modified by init().
     latchActiveFeatures();
 
-    osdSlaveTasksInit();
+    fcTasksInit();
 
     systemState |= SYSTEM_STATE_READY;
 }

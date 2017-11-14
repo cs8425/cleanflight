@@ -13,6 +13,7 @@ COMMON_SRC = \
             common/maths.c \
             common/printf.c \
             common/streambuf.c \
+            common/time.c \
             common/typeconversion.c \
             config/config_eeprom.c \
             config/feature.c \
@@ -50,15 +51,14 @@ COMMON_SRC = \
             fc/config.c \
             fc/fc_dispatch.c \
             fc/fc_hardfaults.c \
-            fc/fc_msp.c \
-            fc/fc_msp_box.c \
             fc/fc_tasks.c \
             fc/runtime_config.c \
+            interface/msp.c \
+            interface/msp_box.c \
             io/beeper.c \
             io/serial.c \
             io/statusindicator.c \
             io/transponder_ir.c \
-            io/rcsplit.c \
             msp/msp_serial.c \
             scheduler/scheduler.c \
             sensors/battery.c \
@@ -87,14 +87,14 @@ FC_SRC = \
             fc/rc_adjustments.c \
             fc/rc_controls.c \
             fc/rc_modes.c \
-            fc/cli.c \
-            fc/settings.c \
             flight/altitude.c \
             flight/failsafe.c \
             flight/imu.c \
             flight/mixer.c \
             flight/pid.c \
             flight/servos.c \
+            interface/cli.c \
+            interface/settings.c \
             io/serial_4way.c \
             io/serial_4way_avrootloader.c \
             io/serial_4way_stk500v2.c \
@@ -111,10 +111,12 @@ FC_SRC = \
             rx/rx_spi.c \
             rx/crsf.c \
             rx/sbus.c \
+            rx/sbus_channels.c \
             rx/spektrum.c \
             rx/sumd.c \
             rx/sumh.c \
             rx/xbus.c \
+            rx/fport.c \
             rx/rx_onboard.c \
             sensors/acceleration.c \
             sensors/boardalignment.c \
@@ -147,6 +149,10 @@ FC_SRC = \
             io/displayport_max7456.c \
             io/displayport_msp.c \
             io/displayport_oled.c \
+            io/displayport_rcdevice.c \
+            io/rcdevice_cam.c \
+            io/rcdevice.c \
+            io/rcdevice_osd.c \
             io/gps.c \
             io/ledstrip.c \
             io/osd.c \
@@ -157,15 +163,17 @@ FC_SRC = \
             telemetry/srxl.c \
             telemetry/frsky.c \
             telemetry/hott.c \
+            telemetry/jetiexbus.c \
             telemetry/smartport.c \
             telemetry/ltm.c \
-            telemetry/lcp.c \
             telemetry/mavlink.c \
             telemetry/msp_shared.c \
             telemetry/ibus.c \
             telemetry/ibus_shared.c \
+            telemetry/lcp.c \
             sensors/esc_sensor.c \
             io/vtx_string.c \
+            io/vtx.c \
             io/vtx_rtc6705.c \
             io/vtx_smartaudio.c \
             io/vtx_tramp.c \
@@ -218,9 +226,11 @@ SPEED_OPTIMISED_SRC := $(SPEED_OPTIMISED_SRC) \
             rx/rx_spi.c \
             rx/crsf.c \
             rx/sbus.c \
+            rx/sbus_channels.c \
             rx/spektrum.c \
             rx/sumd.c \
             rx/xbus.c \
+            rx/fport.c \
             rx/rx_onboard.c \
             scheduler/scheduler.c \
             sensors/acceleration.c \
@@ -246,12 +256,12 @@ SIZE_OPTIMISED_SRC := $(SIZE_OPTIMISED_SRC) \
             drivers/vtx_rtc6705.c \
             drivers/vtx_common.c \
             fc/fc_init.c \
-            fc/cli.c \
-            fc/settings.c \
             config/config_eeprom.c \
             config/feature.c \
             config/parameter_group.c \
             config/config_streamer.c \
+            interface/cli.c \
+            interface/settings.c \
             io/serial_4way.c \
             io/serial_4way_avrootloader.c \
             io/serial_4way_stk500v2.c \
@@ -264,7 +274,11 @@ SIZE_OPTIMISED_SRC := $(SIZE_OPTIMISED_SRC) \
             cms/cms_menu_ledstrip.c \
             cms/cms_menu_misc.c \
             cms/cms_menu_osd.c \
+            cms/cms_menu_vtx_rtc6705.c \
+            cms/cms_menu_vtx_smartaudio.c \
+            cms/cms_menu_vtx_tramp.c \
             io/vtx_string.c \
+            io/vtx.c \
             io/vtx_rtc6705.c \
             io/vtx_smartaudio.c \
             io/vtx_tramp.c \

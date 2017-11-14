@@ -1,7 +1,5 @@
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <math.h>
 #include <string.h>
 
 #include "platform.h"
@@ -12,13 +10,9 @@
 
 #include "common/utils.h"
 
-#include "fc/fc_msp.h"
+#include "interface/msp.h"
 
-#include "msp/msp.h"
-
-#include "rx/crsf.h"
-#include "rx/msp.h"
-
+#include "telemetry/crsf.h"
 #include "telemetry/msp_shared.h"
 #include "telemetry/smartport.h"
 
@@ -36,9 +30,6 @@ enum {
     TELEMETRY_MSP_ERROR=2
 };
 
-#define REQUEST_BUFFER_SIZE 64
-#define RESPONSE_BUFFER_SIZE 64
-
 STATIC_UNIT_TESTED uint8_t checksum = 0;
 STATIC_UNIT_TESTED mspPackage_t mspPackage;
 static mspRxBuffer_t mspRxBuffer;
@@ -46,7 +37,8 @@ static mspTxBuffer_t mspTxBuffer;
 static mspPacket_t mspRxPacket;
 static mspPacket_t mspTxPacket;
 
-void initSharedMsp() {
+void initSharedMsp(void)
+{
     mspPackage.requestBuffer = (uint8_t *)&mspRxBuffer;
     mspPackage.requestPacket = &mspRxPacket;
     mspPackage.requestPacket->buf.ptr = mspPackage.requestBuffer;
@@ -58,7 +50,7 @@ void initSharedMsp() {
     mspPackage.responsePacket->buf.end = mspPackage.responseBuffer;
 }
 
-static void processMspPacket()
+static void processMspPacket(void)
 {
     mspPackage.responsePacket->cmd = 0;
     mspPackage.responsePacket->result = 0;
@@ -86,7 +78,7 @@ void sendMspErrorResponse(uint8_t error, int16_t cmd)
     sbufSwitchToReader(&mspPackage.responsePacket->buf, mspPackage.responseBuffer);
 }
 
-bool handleMspFrame(uint8_t *frameStart, uint8_t *frameEnd)
+bool handleMspFrame(uint8_t *frameStart, int frameLength)
 {
     static uint8_t mspStarted = 0;
     static uint8_t lastSeq = 0;
@@ -100,11 +92,11 @@ bool handleMspFrame(uint8_t *frameStart, uint8_t *frameEnd)
     }
 
     mspPacket_t *packet = mspPackage.requestPacket;
-    sbuf_t *frameBuf = sbufInit(&mspPackage.requestFrame, frameStart, frameEnd);
+    sbuf_t *frameBuf = sbufInit(&mspPackage.requestFrame, frameStart, frameStart + (uint8_t)frameLength);
     sbuf_t *rxBuf = &mspPackage.requestPacket->buf;
-    uint8_t header = sbufReadU8(frameBuf);
-    uint8_t seqNumber = header & TELEMETRY_MSP_SEQ_MASK;
-    uint8_t version = (header & TELEMETRY_MSP_VER_MASK) >> TELEMETRY_MSP_VER_SHIFT;
+    const uint8_t header = sbufReadU8(frameBuf);
+    const uint8_t seqNumber = header & TELEMETRY_MSP_SEQ_MASK;
+    const uint8_t version = (header & TELEMETRY_MSP_VER_MASK) >> TELEMETRY_MSP_VER_SHIFT;
 
     if (version != TELEMETRY_MSP_VERSION) {
         sendMspErrorResponse(TELEMETRY_MSP_VER_MISMATCH, 0);
@@ -131,8 +123,8 @@ bool handleMspFrame(uint8_t *frameStart, uint8_t *frameEnd)
         return false;
     }
 
-    uint8_t bufferBytesRemaining = sbufBytesRemaining(rxBuf);
-    uint8_t frameBytesRemaining = sbufBytesRemaining(frameBuf);
+    const uint8_t bufferBytesRemaining = sbufBytesRemaining(rxBuf);
+    const uint8_t frameBytesRemaining = sbufBytesRemaining(frameBuf);
     uint8_t payload[frameBytesRemaining];
 
     if (bufferBytesRemaining >= frameBytesRemaining) {
@@ -185,14 +177,13 @@ bool sendMspReply(uint8_t payloadSize, mspResponseFnPtr responseFn)
 
         uint8_t size = sbufBytesRemaining(txBuf);
         sbufWriteU8(payloadBuf, size);
-    }
-    else {
+    } else {
         // header
         sbufWriteU8(payloadBuf, (seq++ & TELEMETRY_MSP_SEQ_MASK));
     }
 
-    uint8_t bufferBytesRemaining = sbufBytesRemaining(txBuf);
-    uint8_t payloadBytesRemaining = sbufBytesRemaining(payloadBuf);
+    const uint8_t bufferBytesRemaining = sbufBytesRemaining(txBuf);
+    const uint8_t payloadBytesRemaining = sbufBytesRemaining(payloadBuf);
     uint8_t frame[payloadBytesRemaining];
 
     if (bufferBytesRemaining >= payloadBytesRemaining) {

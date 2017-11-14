@@ -75,7 +75,7 @@ void pgResetFn_motorConfig(motorConfig_t *motorConfig)
     motorConfig->dev.motorPwmProtocol = PWM_TYPE_BRUSHED;
     motorConfig->dev.useUnsyncedPwm = true;
 #else
-#ifdef BRUSHED_ESC_AUTODETECT
+#ifdef USE_BRUSHED_ESC_AUTODETECT
     if (hardwareMotorType == MOTOR_BRUSHED) {
         motorConfig->minthrottle = 1000;
         motorConfig->dev.motorPwmRate = BRUSHED_MOTORS_PWM_RATE;
@@ -104,12 +104,7 @@ void pgResetFn_motorConfig(motorConfig_t *motorConfig)
 
 PG_REGISTER_ARRAY(motorMixer_t, MAX_SUPPORTED_MOTORS, customMotorMixer, PG_MOTOR_MIXER, 0);
 
-#define EXTERNAL_DSHOT_CONVERSION_FACTOR 2
-// (minimum output value(1001) - (minimum input value(48) / conversion factor(2))
-#define EXTERNAL_DSHOT_CONVERSION_OFFSET 977
-#define EXTERNAL_CONVERSION_MIN_VALUE 1000
-#define EXTERNAL_CONVERSION_MAX_VALUE 2000
-#define EXTERNAL_CONVERSION_3D_MID_VALUE 1500
+#define PWM_RANGE_MID 1500
 
 #define TRICOPTER_ERROR_RATE_YAW_SATURATED 75 // rate at which tricopter yaw axis becomes saturated, determined experimentally by TriFlight
 
@@ -121,9 +116,6 @@ float motor_disarmed[MAX_SUPPORTED_MOTORS];
 
 mixerMode_e currentMixerMode;
 static motorMixer_t currentMixer[MAX_SUPPORTED_MOTORS];
-
-float pidSumLimit;
-float pidSumLimitYaw;
 
 
 static const motorMixer_t mixerQuadX[] = {
@@ -299,7 +291,7 @@ const mixer_t mixers[] = {
     { 8, false, mixerOctoFlatP },      // MIXER_OCTOFLATP
     { 8, false, mixerOctoFlatX },      // MIXER_OCTOFLATX
     { 1, true,  mixerSingleProp },     // * MIXER_AIRPLANE
-    { 0, true,  NULL },                // * MIXER_HELI_120_CCPM
+    { 1, true,  mixerSingleProp },     // * MIXER_HELI_120_CCPM
     { 0, true,  NULL },                // * MIXER_HELI_90_DEG
     { 4, false, mixerVtail4 },         // MIXER_VTAIL4
     { 6, false, mixerHex6H },          // MIXER_HEX6H
@@ -412,12 +404,6 @@ void mixerInit(mixerMode_e mixerMode)
     currentMixerMode = mixerMode;
 
     initEscEndpoints();
-}
-
-void pidInitMixer(const struct pidProfile_s *pidProfile)
-{
-    pidSumLimit = CONVERT_PARAMETER_TO_FLOAT(pidProfile->pidSumLimit);
-    pidSumLimitYaw = CONVERT_PARAMETER_TO_FLOAT(pidProfile->pidSumLimitYaw);
 }
 
 #ifndef USE_QUAD_MIXER_ONLY
@@ -573,7 +559,9 @@ void calculateThrottleAndCurrentMotorEndpoints(void)
             rcThrottlePrevious = rcCommand[THROTTLE];
             throttle = rcCommand[THROTTLE] - rcCommand3dDeadBandHigh;
             currentThrottleInputRange = rcCommandThrottleRange3dHigh;
-        } else if((rcThrottlePrevious <= rcCommand3dDeadBandLow)) {
+        } else if((rcThrottlePrevious <= rcCommand3dDeadBandLow &&
+                !isModeActivationConditionPresent(BOX3DONASWITCH)) || 
+                isMotorsReversed()) {
             // INVERTED_TO_DEADBAND
             motorRangeMin = motorOutputLow;
             motorRangeMax = deadbandMotor3dLow;
@@ -610,28 +598,29 @@ void calculateThrottleAndCurrentMotorEndpoints(void)
     throttle = constrainf(throttle / currentThrottleInputRange, 0.0f, 1.0f);
 }
 
+#define CRASH_FLIP_DEADBAND 20
+
 static void applyFlipOverAfterCrashModeToMotors(void)
 {
     float motorMix[MAX_SUPPORTED_MOTORS];
 
-    for (int i = 0; i < motorCount; i++) {
-        if (getRcDeflectionAbs(FD_ROLL) > getRcDeflectionAbs(FD_PITCH)) {
-            motorMix[i] = getRcDeflection(FD_ROLL) * pidSumLimit * currentMixer[i].roll * (-1);
-        } else {
-            motorMix[i] = getRcDeflection(FD_PITCH) * pidSumLimit * currentMixer[i].pitch * (-1);
+    if (ARMING_FLAG(ARMED)) {
+        for (int i = 0; i < motorCount; i++) {
+            if (getRcDeflectionAbs(FD_ROLL) > getRcDeflectionAbs(FD_PITCH)) {
+                motorMix[i] = getRcDeflection(FD_ROLL) * currentMixer[i].roll * -1;
+            } else {
+                motorMix[i] = getRcDeflection(FD_PITCH) * currentMixer[i].pitch * -1;
+            }
+
+            // Apply the mix to motor endpoints
+            float motorOutput =  motorOutputMin + motorOutputRange * motorMix[i];
+            //Add a little bit to the motorOutputMin so props aren't spinning when sticks are centered
+            motorOutput = (motorOutput < motorOutputMin + CRASH_FLIP_DEADBAND ) ? disarmMotorOutput : motorOutput - CRASH_FLIP_DEADBAND;
+
+            motor[i] = motorOutput;
         }
-    }
-    // Apply the mix to motor endpoints
-    for (uint32_t i = 0; i < motorCount; i++) {
-        float motorOutput =  motorOutputMin + motorOutputRange * (motorMix[i]);
-        //Add a little bit to the motorOutputMin so props aren't spinning when sticks are centered
-        motorOutput = (motorOutput < motorOutputMin + 20 ) ? disarmMotorOutput : motorOutput;
-
-        motor[i] = motorOutput;
-    }
-
-    // Disarmed mode
-    if (!ARMING_FLAG(ARMED)) {
+    } else {
+        // Disarmed mode
         for (int i = 0; i < motorCount; i++) {
             motor[i] = motor_disarmed[i];
         }
@@ -684,17 +673,12 @@ void mixTable(uint8_t vbatPidCompensation)
 
     // Calculate and Limit the PIDsum
     float scaledAxisPidRoll =
-        constrainf((axisPID_P[FD_ROLL] + axisPID_I[FD_ROLL] + axisPID_D[FD_ROLL]) / PID_MIXER_SCALING, -pidSumLimit, pidSumLimit);
+        constrainf(axisPID_P[FD_ROLL] + axisPID_I[FD_ROLL] + axisPID_D[FD_ROLL], -currentPidProfile->pidSumLimit, currentPidProfile->pidSumLimit) / PID_MIXER_SCALING;
     float scaledAxisPidPitch =
-        constrainf((axisPID_P[FD_PITCH] + axisPID_I[FD_PITCH] + axisPID_D[FD_PITCH]) / PID_MIXER_SCALING, -pidSumLimit, pidSumLimit);
+        constrainf(axisPID_P[FD_PITCH] + axisPID_I[FD_PITCH] + axisPID_D[FD_PITCH], -currentPidProfile->pidSumLimit, currentPidProfile->pidSumLimit) / PID_MIXER_SCALING;
     float scaledAxisPidYaw =
-        -constrainf((axisPID_P[FD_YAW] + axisPID_I[FD_YAW]) / PID_MIXER_SCALING, -pidSumLimitYaw, pidSumLimitYaw);
-    if (isMotorsReversed()) {
-        scaledAxisPidRoll = -scaledAxisPidRoll;
-        scaledAxisPidPitch = -scaledAxisPidPitch;
-        scaledAxisPidYaw = -scaledAxisPidYaw;
-    }
-    if (mixerConfig()->yaw_motors_reversed) {
+        constrainf(axisPID_P[FD_YAW] + axisPID_I[FD_YAW], -currentPidProfile->pidSumLimitYaw, currentPidProfile->pidSumLimitYaw) / PID_MIXER_SCALING;
+    if (!mixerConfig()->yaw_motors_reversed) {
         scaledAxisPidYaw = -scaledAxisPidYaw;
     }
 
@@ -743,44 +727,62 @@ void mixTable(uint8_t vbatPidCompensation)
 
 float convertExternalToMotor(uint16_t externalValue)
 {
-    uint16_t motorValue = externalValue;
+    uint16_t motorValue;
+    switch ((int)isMotorProtocolDshot()) {
 #ifdef USE_DSHOT
-    if (isMotorProtocolDshot()) {
-        // Add 1 to the value, otherwise throttle tops out at 2046
-        motorValue = externalValue <= EXTERNAL_CONVERSION_MIN_VALUE ? DSHOT_DISARM_COMMAND : constrain((externalValue - EXTERNAL_DSHOT_CONVERSION_OFFSET) * EXTERNAL_DSHOT_CONVERSION_FACTOR + 1, DSHOT_MIN_THROTTLE, DSHOT_MAX_THROTTLE);
+    case true:
+        externalValue = constrain(externalValue, PWM_RANGE_MIN, PWM_RANGE_MAX);
 
         if (feature(FEATURE_3D)) {
-            if (externalValue == EXTERNAL_CONVERSION_3D_MID_VALUE) {
+            if (externalValue == PWM_RANGE_MID) {
                 motorValue = DSHOT_DISARM_COMMAND;
-            } else if (motorValue >= DSHOT_MIN_THROTTLE && motorValue <= DSHOT_3D_DEADBAND_LOW) {
-                // Add 1 to the value, otherwise throttle tops out at 2046
-                motorValue = DSHOT_MIN_THROTTLE + (DSHOT_3D_DEADBAND_LOW - motorValue) + 1;
+            } else if (externalValue < PWM_RANGE_MID) {
+                motorValue = scaleRange(externalValue, PWM_RANGE_MIN, PWM_RANGE_MID - 1, DSHOT_3D_DEADBAND_LOW, DSHOT_MIN_THROTTLE);
+            } else {
+                motorValue = scaleRange(externalValue, PWM_RANGE_MID + 1, PWM_RANGE_MAX, DSHOT_3D_DEADBAND_HIGH, DSHOT_MAX_THROTTLE);
             }
+        } else {
+            motorValue = (externalValue == PWM_RANGE_MIN) ? DSHOT_DISARM_COMMAND : scaleRange(externalValue, PWM_RANGE_MIN + 1, PWM_RANGE_MAX, DSHOT_MIN_THROTTLE, DSHOT_MAX_THROTTLE);
         }
-    }
+
+        break;
+    case false:
 #endif
+    default:
+        motorValue = externalValue;
+
+        break;
+    }
 
     return (float)motorValue;
 }
 
 uint16_t convertMotorToExternal(float motorValue)
 {
-    uint16_t externalValue = lrintf(motorValue);
+    uint16_t externalValue;
+    switch ((int)isMotorProtocolDshot()) {
 #ifdef USE_DSHOT
-    if (isMotorProtocolDshot()) {
-        if (feature(FEATURE_3D) && motorValue >= DSHOT_MIN_THROTTLE && motorValue <= DSHOT_3D_DEADBAND_LOW) {
-            // Subtract 1 to compensate for imbalance introduced in convertExternalToMotor()
-            motorValue = DSHOT_MIN_THROTTLE + (DSHOT_3D_DEADBAND_LOW - motorValue) - 1;
+    case true:
+        if (feature(FEATURE_3D)) {
+            if (motorValue == DSHOT_DISARM_COMMAND || motorValue < DSHOT_MIN_THROTTLE) {
+                externalValue = PWM_RANGE_MID;
+            } else if (motorValue <= DSHOT_3D_DEADBAND_LOW) {
+                externalValue = scaleRange(motorValue, DSHOT_MIN_THROTTLE, DSHOT_3D_DEADBAND_LOW, PWM_RANGE_MID - 1, PWM_RANGE_MIN);
+            } else {
+                externalValue = scaleRange(motorValue, DSHOT_3D_DEADBAND_HIGH, DSHOT_MAX_THROTTLE, PWM_RANGE_MID + 1, PWM_RANGE_MAX);
+            }
+        } else {
+            externalValue = (motorValue < DSHOT_MIN_THROTTLE) ? PWM_RANGE_MIN : scaleRange(motorValue, DSHOT_MIN_THROTTLE, DSHOT_MAX_THROTTLE, PWM_RANGE_MIN + 1, PWM_RANGE_MAX);
         }
 
-        // Subtract 1 to compensate for imbalance introduced in convertExternalToMotor()
-        externalValue = motorValue < DSHOT_MIN_THROTTLE ? EXTERNAL_CONVERSION_MIN_VALUE : constrain(((motorValue - 1)/ EXTERNAL_DSHOT_CONVERSION_FACTOR) + EXTERNAL_DSHOT_CONVERSION_OFFSET, EXTERNAL_CONVERSION_MIN_VALUE + 1, EXTERNAL_CONVERSION_MAX_VALUE);
-
-        if (feature(FEATURE_3D) && motorValue == DSHOT_DISARM_COMMAND) {
-            externalValue = EXTERNAL_CONVERSION_3D_MID_VALUE;
-        }
-    }
+        break;
+    case false:
 #endif
+    default:
+        externalValue = motorValue;
+
+        break;
+    }
 
     return externalValue;
 }
