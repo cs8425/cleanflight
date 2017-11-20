@@ -74,8 +74,8 @@
 #include "flight/pid.h"
 #include "flight/servos.h"
 
-#include "interface/fc_msp.h"
-#include "interface/fc_msp_box.h"
+#include "interface/msp.h"
+#include "interface/msp_box.h"
 #include "interface/msp_protocol.h"
 
 #include "io/asyncfatfs/asyncfatfs.h"
@@ -95,11 +95,10 @@
 #include "io/vtx.h"
 #include "io/vtx_string.h"
 
-#include "msp/msp.h"
 #include "msp/msp_serial.h"
 
-#include "rx/msp.h"
 #include "rx/rx.h"
+#include "rx/msp.h"
 
 #include "scheduler/scheduler.h"
 
@@ -150,6 +149,8 @@ typedef enum {
 
 #define RATEPROFILE_MASK (1 << 7)
 #endif //USE_OSD_SLAVE
+
+#define RTC_NOT_SUPPORTED 0xff
 
 #ifdef USE_SERIAL_4WAY_BLHELI_INTERFACE
 #define ESC_4WAY 0xff
@@ -649,7 +650,11 @@ static bool mspCommonProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst, mspPostProce
         // Alarms
         sbufWriteU8(dst, osdConfig()->rssi_alarm);
         sbufWriteU16(dst, osdConfig()->cap_alarm);
-        sbufWriteU16(dst, 0);
+
+        // Reuse old timer alarm (U16) as OSD_ITEM_COUNT
+        sbufWriteU8(dst, 0);
+        sbufWriteU8(dst, OSD_ITEM_COUNT);
+
         sbufWriteU16(dst, osdConfig()->alt_alarm);
 
         // Element position and visibility
@@ -1217,9 +1222,41 @@ static bool mspProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst)
                 sbufWriteU8(dst, VTXDEV_UNKNOWN); // no VTX detected
             }
         }
-#endif
-        break;
 
+        break;
+#endif
+
+    case MSP_TX_INFO:
+        sbufWriteU8(dst, rssiSource);
+        uint8_t rtcDateTimeIsSet = 0;
+#ifdef USE_RTC_TIME
+        dateTime_t dt;
+        if (rtcGetDateTime(&dt)) {
+            rtcDateTimeIsSet = 1;
+        }
+#else
+        rtcDateTimeIsSet = RTC_NOT_SUPPORTED;
+#endif
+        sbufWriteU8(dst, rtcDateTimeIsSet);
+
+        break;
+#ifdef USE_RTC_TIME
+    case MSP_RTC:
+        {
+            dateTime_t dt;
+            if (rtcGetDateTime(&dt)) {
+                sbufWriteU16(dst, dt.year);
+                sbufWriteU8(dst, dt.month);
+                sbufWriteU8(dst, dt.day);
+                sbufWriteU8(dst, dt.hours);
+                sbufWriteU8(dst, dt.minutes);
+                sbufWriteU8(dst, dt.seconds);
+                sbufWriteU16(dst, dt.millis);
+            }
+        }
+
+        break;
+#endif
     default:
         return false;
     }
@@ -1248,7 +1285,7 @@ static mspResult_e mspFcProcessOutCommandWithArg(uint8_t cmdMSP, sbuf_t *arg, sb
 }
 #endif // USE_OSD_SLAVE
 
-#ifdef USE_GPS
+#ifdef USE_NAV
 static void mspFcWpCommand(sbuf_t *dst, sbuf_t *src)
 {
     uint8_t wp_no;
@@ -1309,7 +1346,7 @@ static mspResult_e mspProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
     uint32_t i;
     uint8_t value;
     const unsigned int dataSize = sbufBytesRemaining(src);
-#ifdef USE_GPS
+#ifdef USE_NAV
     uint8_t wp_no;
     int32_t lat = 0, lon = 0, alt = 0;
 #endif
@@ -1709,7 +1746,7 @@ static mspResult_e mspProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
         break;
 #endif
 
-    case MSP_ARMING_DISABLE:
+    case MSP_SET_ARMING_DISABLED:
         {
             const uint8_t command = sbufReadU8(src);
             if (command) {
@@ -1740,7 +1777,8 @@ static mspResult_e mspProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
         gpsSol.groundSpeed = sbufReadU16(src);
         GPS_update |= 2;        // New data signalisation to GPS functions // FIXME Magic Numbers
         break;
-
+#endif // USE_GPS
+#ifdef USE_NAV
     case MSP_SET_WP:
         wp_no = sbufReadU8(src);    //get the wp number
         lat = sbufReadU32(src);
@@ -1765,7 +1803,7 @@ static mspResult_e mspProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
             GPS_set_next_wp(&GPS_hold[LAT], &GPS_hold[LON]);
         }
         break;
-#endif
+#endif // USE_NAV
 
     case MSP_SET_FEATURE_CONFIG:
         featureClearAll();
@@ -1940,18 +1978,19 @@ static mspResult_e mspProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
 
 #ifdef USE_RTC_TIME
     case MSP_SET_RTC:
-    {
-        dateTime_t dt;
-        dt.year = sbufReadU16(src);
-        dt.month = sbufReadU8(src);
-        dt.day = sbufReadU8(src);
-        dt.hours = sbufReadU8(src);
-        dt.minutes = sbufReadU8(src);
-        dt.seconds = sbufReadU8(src);
-        dt.millis = 0;
-        rtcSetDateTime(&dt);
-    }
-    break;
+        {
+            dateTime_t dt;
+            dt.year = sbufReadU16(src);
+            dt.month = sbufReadU8(src);
+            dt.day = sbufReadU8(src);
+            dt.hours = sbufReadU8(src);
+            dt.minutes = sbufReadU8(src);
+            dt.seconds = sbufReadU8(src);
+            dt.millis = 0;
+            rtcSetDateTime(&dt);
+        }
+
+        break;
 #endif
 
     case MSP_TX_INFO:
@@ -2174,7 +2213,7 @@ mspResult_e mspFcProcessCommand(mspPacket_t *cmd, mspPacket_t *reply, mspPostPro
         mspFc4waySerialCommand(dst, src, mspPostProcessFn);
         ret = MSP_RESULT_ACK;
 #endif
-#ifdef USE_GPS
+#ifdef USE_NAV
     } else if (cmdMSP == MSP_WP) {
         mspFcWpCommand(dst, src);
         ret = MSP_RESULT_ACK;

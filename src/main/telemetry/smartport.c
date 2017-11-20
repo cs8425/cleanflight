@@ -36,9 +36,8 @@
 #include "flight/imu.h"
 #include "flight/mixer.h"
 #include "flight/pid.h"
-#include "flight/navigation.h"
 
-#include "interface/fc_msp.h"
+#include "interface/msp.h"
 
 #include "io/beeper.h"
 #include "io/motors.h"

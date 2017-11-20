@@ -99,8 +99,8 @@ extern uint8_t __config_end;
 #include "flight/servos.h"
 
 #include "interface/cli.h"
-#include "interface/fc_msp.h"
-#include "interface/fc_msp_box.h"
+#include "interface/msp.h"
+#include "interface/msp_box.h"
 #include "interface/msp_protocol.h"
 #include "interface/settings.h"
 
@@ -3642,9 +3642,9 @@ const clicmd_t cmdTable[] = {
     CLI_COMMAND_DEF("flash_read", NULL, "<length> <address>", cliFlashRead),
     CLI_COMMAND_DEF("flash_write", NULL, "<address> <message>", cliFlashWrite),
 #endif
-#ifdef USE_RX_FRSKY_D
-    CLI_COMMAND_DEF("frsky_bind", NULL, NULL, cliFrSkyBind),
 #endif
+#ifdef USE_RX_FRSKY_D
+    CLI_COMMAND_DEF("frsky_bind", "initiate binding for FrSky RX", NULL, cliFrSkyBind),
 #endif
     CLI_COMMAND_DEF("get", "get variable value", "[name]", cliGet),
 #ifdef USE_GPS

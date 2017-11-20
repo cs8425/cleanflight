@@ -76,8 +76,8 @@
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
 
-#include "interface/fc_msp.h"
 #include "interface/cli.h"
+#include "interface/msp.h"
 
 #include "msp/msp_serial.h"
 
@@ -106,6 +106,8 @@
 #include "io/vtx_control.h"
 #include "io/vtx_smartaudio.h"
 #include "io/vtx_tramp.h"
+
+#include "io/displayport_srxl.h"
 
 #include "scheduler/scheduler.h"
 
@@ -597,11 +599,17 @@ void init(void)
     }
 #endif
 
+#if defined(USE_CMS) && defined(USE_SPEKTRUM_CMS_TELEMETRY)
+    // Register the srxl Textgen telemetry sensor as a displayport device
+    cmsDisplayPortRegister(displayPortSrxlInit());
+#endif
 
 #ifdef USE_GPS
     if (feature(FEATURE_GPS)) {
         gpsInit();
+#ifdef USE_NAV
         navigationInit();
+#endif
     }
 #endif
 
