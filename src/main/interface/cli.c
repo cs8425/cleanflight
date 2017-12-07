@@ -107,8 +107,6 @@ extern uint8_t __config_end;
 #include "io/asyncfatfs/asyncfatfs.h"
 #include "io/beeper.h"
 #include "io/flashfs.h"
-#include "io/displayport_max7456.h"
-#include "io/displayport_msp.h"
 #include "io/gimbal.h"
 #include "io/gps.h"
 #include "io/ledstrip.h"
@@ -120,7 +118,8 @@ extern uint8_t __config_end;
 
 #include "rx/rx.h"
 #include "rx/spektrum.h"
-#include "rx/frsky_d.h"
+#include "../rx/cc2500_frsky_common.h"
+#include "../rx/cc2500_frsky_x.h"
 
 #include "scheduler/scheduler.h"
 
@@ -926,7 +925,7 @@ static void cliSerialPassthrough(char *cmdline)
         if (!mode)
             mode = MODE_RXTX;
 
-        passThroughPort = openSerialPort(id, FUNCTION_NONE, NULL,
+        passThroughPort = openSerialPort(id, FUNCTION_NONE, NULL, NULL,
                                          baud, mode,
                                          SERIAL_NOT_INVERTED);
         if (!passThroughPort) {
@@ -2114,12 +2113,24 @@ static void cliBeeper(char *cmdline)
 }
 #endif
 
-#ifdef USE_RX_FRSKY_D
 void cliFrSkyBind(char *cmdline){
     UNUSED(cmdline);
-    frSkyDBind();
-}
+    switch (rxConfig()->rx_spi_protocol) {
+#ifdef USE_RX_FRSKY_SPI
+    case RX_SPI_FRSKY_D:
+    case RX_SPI_FRSKY_X:
+        frSkyBind();
+
+        cliPrint("Binding...");
+
+        break;
 #endif
+    default:
+        cliPrint("Not supported.");
+
+        break;
+    }
+}
 
 static void printMap(uint8_t dumpMask, const rxConfig_t *rxConfig, const rxConfig_t *defaultRxConfig)
 {
@@ -3642,9 +3653,9 @@ const clicmd_t cmdTable[] = {
     CLI_COMMAND_DEF("flash_read", NULL, "<length> <address>", cliFlashRead),
     CLI_COMMAND_DEF("flash_write", NULL, "<address> <message>", cliFlashWrite),
 #endif
-#ifdef USE_RX_FRSKY_D
-    CLI_COMMAND_DEF("frsky_bind", NULL, NULL, cliFrSkyBind),
 #endif
+#ifdef USE_RX_FRSKY_SPI
+    CLI_COMMAND_DEF("frsky_bind", "initiate binding for FrSky SPI RX", NULL, cliFrSkyBind),
 #endif
     CLI_COMMAND_DEF("get", "get variable value", "[name]", cliGet),
 #ifdef USE_GPS

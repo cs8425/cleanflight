@@ -630,19 +630,19 @@ extern "C" {
     bool isFirstArmingGyroCalibrationRunning(void) { return false; }
     void pidController(const pidProfile_t *, const rollAndPitchTrims_t *, timeUs_t) {}
     void pidStabilisationState(pidStabilisationState_e) {}
-    void mixTable(uint8_t) {};
+    void mixTable(timeUs_t , uint8_t) {};
     void writeMotors(void) {};
     void writeServos(void) {};
     void calculateRxChannelsAndUpdateFailsafe(timeUs_t) {}
     bool isMixerUsingServos(void) { return false; }
-    void gyroUpdate(void) {}
+    void gyroUpdate(timeUs_t) {}
     timeDelta_t getTaskDeltaTime(cfTaskId_e) { return 0; }
     void updateRSSI(timeUs_t) {}
     bool failsafeIsMonitoring(void) { return false; }
     void failsafeStartMonitoring(void) {}
     void failsafeUpdateState(void) {}
     bool failsafeIsActive(void) { return false; }
-    void pidResetErrorGyroState(void) {}
+    void pidResetITerm(void) {}
     void updateAdjustmentStates(void) {}
     void processRcAdjustments(controlRateConfig_t *) {}
     void updateGpsWaypointsAndMode(void) {}
@@ -662,6 +662,7 @@ extern "C" {
     void accSetCalibrationCycles(uint16_t) {}
     void baroSetCalibrationCycles(uint16_t) {}
     void changePidProfile(uint8_t) {}
+    void changeControlRateProfile(uint8_t) {}
     void dashboardEnablePageCycling(void) {}
     void dashboardDisablePageCycling(void) {}
     bool imuQuaternionHeadfreeOffsetSet(void) { return true; }

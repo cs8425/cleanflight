@@ -56,6 +56,7 @@
 #define SPEKTRUM_1024_CHANNEL_COUNT     7
 
 #define SPEKTRUM_NEEDED_FRAME_INTERVAL  5000
+#define SPEKTRUM_TELEMETRY_FRAME_DELAY  1000   // Gap between received Rc frame and transmited TM frame, uS
 
 #define SPEKTRUM_BAUDRATE               115200
 
@@ -322,8 +323,10 @@ const uint8_t vtxTrampPi[] = {           // Spektrum Spec    Tx menu  Tx sends  
 
 
 // Receive ISR callback
-static void spektrumDataReceive(uint16_t c)
+static void spektrumDataReceive(uint16_t c, void *data)
 {
+    UNUSED(data);
+
     uint32_t spekTime, spekTimeInterval;
     static uint32_t spekTimeLast = 0;
     static uint8_t spekFramePosition = 0;
@@ -349,8 +352,10 @@ static void spektrumDataReceive(uint16_t c)
 static uint32_t spekChannelData[SPEKTRUM_MAX_SUPPORTED_CHANNEL_COUNT];
 static dispatchEntry_t srxlTelemetryDispatch = { .dispatch = srxlRxSendTelemetryDataDispatch};
 
-static uint8_t spektrumFrameStatus(void)
+static uint8_t spektrumFrameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
 {
+    UNUSED(rxRuntimeConfig);
+
     if (!rcFrameComplete) {
         return RX_FRAME_PENDING;
     }
@@ -473,7 +478,7 @@ static uint8_t spektrumFrameStatus(void)
 
     /* only process if srxl enabled, some data in buffer AND servos in phase 0 */
     if (srxlEnabled && telemetryBufLen && (spekFrame[2] & 0x80)) {
-        dispatchAdd(&srxlTelemetryDispatch, 100);
+        dispatchAdd(&srxlTelemetryDispatch, SPEKTRUM_TELEMETRY_FRAME_DELAY);
     }
     return RX_FRAME_COMPLETE;
 }
@@ -662,6 +667,7 @@ bool spektrumInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig
     serialPort = openSerialPort(portConfig->identifier,
         FUNCTION_RX_SERIAL,
         spektrumDataReceive,
+        NULL,
         SPEKTRUM_BAUDRATE,
         portShared || srxlEnabled ? MODE_RXTX : MODE_RX,
         (rxConfig->serialrx_inverted ? SERIAL_INVERTED : 0) | ((srxlEnabled || rxConfig->halfDuplex) ? SERIAL_BIDIR : 0)

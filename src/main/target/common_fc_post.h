@@ -61,6 +61,11 @@
 #endif
 #endif
 
+// undefine USE_ALT_HOLD if there is no baro or sonar to support it
+#if defined(USE_ALT_HOLD) && !defined(USE_BARO) && !defined(USE_SONAR)
+#undef USE_ALT_HOLD
+#endif
+
 /* If either VTX_CONTROL or VTX_COMMON is undefined then remove common code and device drivers */
 #if !defined(VTX_COMMON) || !defined(VTX_CONTROL)
 #undef VTX_COMMON
@@ -68,3 +73,8 @@
 #undef VTX_TRAMP
 #undef VTX_SMARTAUDIO
 #endif
+
+#if defined(USE_RX_FRSKY_SPI_D) || defined(USE_RX_FRSKY_SPI_X)
+#define USE_RX_FRSKY_SPI
+#endif
+

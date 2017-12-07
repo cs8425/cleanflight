@@ -26,6 +26,7 @@
 
 #include "blackbox.h"
 #include "blackbox_encoding.h"
+#include "blackbox_fielddefs.h"
 #include "blackbox_io.h"
 
 #include "build/build_config.h"
@@ -54,7 +55,6 @@
 
 #include "flight/failsafe.h"
 #include "flight/mixer.h"
-#include "flight/navigation.h"
 #include "flight/pid.h"
 #include "flight/servos.h"
 

@@ -17,12 +17,20 @@
 
 #pragma once
 
-int sl_isalnum(int c);
-int sl_isdigit(int c);
-int sl_isupper(int c);
-int sl_islower(int c);
-int sl_tolower(int c);
-int sl_toupper(int c);
+//#include <stdbool.h>
+//#include <stdint.h>
 
-int sl_strcasecmp(const char * s1, const char * s2);
-int sl_strncasecmp(const char * s1, const char * s2, int n);
+//#include "rx.h"
+//#include "rx_spi.h"
+
+typedef struct rxFrSkySpiConfig_s {
+    bool autoBind;
+    uint8_t bindTxId[2];
+    int8_t  bindOffset;
+    uint8_t bindHopData[50];
+    uint8_t rxNum;
+} rxFrSkySpiConfig_t;
+
+PG_DECLARE(rxFrSkySpiConfig_t, rxFrSkySpiConfig);
+
+void frSkyBind(void);

@@ -35,7 +35,7 @@
 
 #include "platform.h"
 
-#ifdef TELEMETRY
+#ifdef USE_TELEMETRY
 
 #include "build/build_config.h"
 
@@ -374,7 +374,7 @@ void configureLcpTelemetryPort(void)
     if (baudRateIndex == BAUD_AUTO) {
         baudRateIndex = BAUD_57600;
     }
-    lcpPort = openSerialPort(portConfig->identifier, FUNCTION_TELEMETRY_LCP, NULL, baudRates[baudRateIndex], TELEMETRY_LCP_INITIAL_PORT_MODE, SERIAL_NOT_INVERTED);
+    lcpPort = openSerialPort(portConfig->identifier, FUNCTION_TELEMETRY_LCP, NULL, NULL, baudRates[baudRateIndex], TELEMETRY_LCP_INITIAL_PORT_MODE, SERIAL_NOT_INVERTED);
     if (!lcpPort)
         return;
     lcpEnabled = true;

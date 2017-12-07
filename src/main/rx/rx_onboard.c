@@ -139,8 +139,9 @@ uint16_t rxOBCReadRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t channe
  * Called from updateRx in rx.c, updateRx called from taskUpdateRxCheck.
  * If taskUpdateRxCheck returns true, then taskUpdateRxMain will shortly be called.
  */
-static uint8_t rxOBCFrameStatus(void)
+static uint8_t rxOBCFrameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
 {
+    UNUSED(rxRuntimeConfig);
     uint8_t status = 0; // bit: RX1-timeout | OBC-timeout | RX1-update | OBC-update
     timeMs_t nowMs = millis();
 
@@ -158,7 +159,7 @@ static uint8_t rxOBCFrameStatus(void)
 
 
     // check fall-back RX
-    const uint8_t frameStatus = rxOBCRuntimeConfig.rxRuntime.rcFrameStatusFn();
+    const uint8_t frameStatus = rxOBCRuntimeConfig.rxRuntime.rcFrameStatusFn(&rxOBCRuntimeConfig.rxRuntime);
     if (frameStatus & RX_FRAME_COMPLETE) {
         status |= 1 << 1;
 

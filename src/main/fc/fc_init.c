@@ -65,7 +65,6 @@
 #include "drivers/usb_io.h"
 #include "drivers/transponder_ir.h"
 #include "drivers/exti.h"
-#include "drivers/max7456.h"
 #include "drivers/vtx_rtc6705.h"
 #include "drivers/vtx_common.h"
 #include "drivers/camera_control.h"
@@ -106,6 +105,8 @@
 #include "io/vtx_control.h"
 #include "io/vtx_smartaudio.h"
 #include "io/vtx_tramp.h"
+
+#include "io/displayport_srxl.h"
 
 #include "scheduler/scheduler.h"
 
@@ -160,18 +161,6 @@ void processLoopback(void)
     }
 #endif
 }
-
-#ifdef VTX_RTC6705
-bool canUpdateVTX(void)
-{
-#if defined(MAX7456_SPI_INSTANCE) && defined(RTC6705_SPI_INSTANCE) && defined(SPI_SHARED_MAX7456_AND_RTC6705)
-    if (feature(FEATURE_OSD)) {
-        return !max7456DmaInProgress();
-    }
-#endif
-    return true;
-}
-#endif
 
 #ifdef BUS_SWITCH_PIN
 void busSwitchInit(void)
@@ -509,7 +498,7 @@ void init(void)
     // so we are ready to call validateAndFixGyroConfig(), pidInit(), and setAccelerationFilter()
     validateAndFixGyroConfig();
     pidInit(currentPidProfile);
-    setAccelerationFilter(accelerometerConfig()->acc_lpf_hz);
+    accInitFilters();
 
 #ifdef USE_SERVOS
     servosInit();
@@ -597,11 +586,17 @@ void init(void)
     }
 #endif
 
+#if defined(USE_CMS) && defined(USE_SPEKTRUM_CMS_TELEMETRY)
+    // Register the srxl Textgen telemetry sensor as a displayport device
+    cmsDisplayPortRegister(displayPortSrxlInit());
+#endif
 
 #ifdef USE_GPS
     if (feature(FEATURE_GPS)) {
         gpsInit();
+#ifdef USE_NAV
         navigationInit();
+#endif
     }
 #endif
 
