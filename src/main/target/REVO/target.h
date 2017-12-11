@@ -146,17 +146,6 @@
 #define USE_BARO_BMP085
 #define USE_BARO_BMP280
 
-#if defined(AIRBOTF4)
-
-#define USE_BARO_BMP085
-#define USE_BARO_BMP280
-
-#define TELEMETRY_LCP
-#define USE_RX_OBC // RX input for On-Board-Computer
-
-#define DEFAULT_FEATURES        (FEATURE_TELEMETRY | FEATURE_RX_OBC)
-
-#endif
 
 #if defined(AIRBOTF4SD)
 // SDCARD support for AIRBOTF4SD
@@ -279,6 +268,20 @@
 #define SERIALRX_UART           SERIAL_PORT_USART6
 #define DEFAULT_FEATURES        FEATURE_TELEMETRY
 #endif
+
+
+#if defined(AIRBOTF4)
+
+#define USE_FAKE_BARO
+#define USE_FAKE_ALTITUDE
+#define USE_TELEMETRY
+#define TELEMETRY_LCP
+#define USE_RX_OBC // RX input for On-Board-Computer
+
+#define DEFAULT_FEATURES        (FEATURE_TELEMETRY | FEATURE_RX_OBC)
+
+#endif
+
 
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
 

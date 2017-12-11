@@ -20,7 +20,7 @@
 
 #include <platform.h>
 
-#ifdef USE_FAKE_BARO
+#if defined(USE_BARO) &&  defined(USE_FAKE_BARO)
 
 #include "common/utils.h"
 
@@ -31,6 +31,19 @@
 static int32_t fakePressure;
 static int32_t fakeTemperature;
 
+#if defined(USE_FAKE_ALTITUDE)
+static int32_t fakeAlt;
+// in cm
+void fakeBaroSetAlt(int32_t alt)
+{
+    fakeAlt = alt;
+}
+
+int32_t fakeBaroGetAlt()
+{
+    return fakeAlt;
+}
+#endif
 
 static void fakeBaroStartGet(baroDev_t *baro)
 {

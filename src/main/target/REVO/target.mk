@@ -12,4 +12,5 @@ TARGET_SRC = \
             drivers/barometer/barometer_ms5611.c \
             drivers/barometer/barometer_bmp085.c \
             drivers/barometer/barometer_bmp280.c \
+            drivers/barometer/barometer_fake.c \
             drivers/compass/compass_hmc5883l.c

@@ -149,6 +149,9 @@ bool baroDetect(baroDev_t *dev, baroSensor_e baroHardwareToUse)
         break;
 
     default:
+#ifdef USE_FAKE_BARO
+        break;
+#endif
         return false;
     }
 
@@ -196,13 +199,18 @@ bool baroDetect(baroDev_t *dev, baroSensor_e baroHardwareToUse)
         ; // fallthough
 
     case BARO_NONE:
+#ifdef USE_FAKE_BARO
+        fakeBaroDetect(dev);
+#endif
         baroHardware = BARO_NONE;
         break;
     }
 
+#if !defined(USE_FAKE_BARO)
     if (baroHardware == BARO_NONE) {
         return false;
     }
+#endif
 
     detectedSensors[SENSOR_INDEX_BARO] = baroHardware;
     sensorsSet(SENSOR_BARO);
@@ -312,9 +320,14 @@ int32_t baroCalculateAltitude(void)
     // calculates height from ground via baro readings
     // see: https://github.com/diydrones/ardupilot/blob/master/libraries/AP_Baro/AP_Baro.cpp#L140
     if (isBaroCalibrationComplete()) {
+#if defined(USE_FAKE_BARO) && defined(USE_FAKE_ALTITUDE)
+        UNUSED(BaroAlt_tmp);
+        baro.BaroAlt = fakeBaroGetAlt();
+#else
         BaroAlt_tmp = lrintf((1.0f - powf((float)(baroPressureSum / PRESSURE_SAMPLE_COUNT) / 101325.0f, 0.190295f)) * 4433000.0f); // in cm
         BaroAlt_tmp -= baroGroundAltitude;
         baro.BaroAlt = lrintf((float)baro.BaroAlt * CONVERT_PARAMETER_TO_FLOAT(barometerConfig()->baro_noise_lpf) + (float)BaroAlt_tmp * (1.0f - CONVERT_PARAMETER_TO_FLOAT(barometerConfig()->baro_noise_lpf))); // additional LPF to reduce baro noise
+#endif
     }
     else {
         baro.BaroAlt = 0;

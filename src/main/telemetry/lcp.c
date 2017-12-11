@@ -50,6 +50,11 @@
 #include "drivers/sensor.h"
 #include "drivers/accgyro/accgyro.h"
 
+#if defined(USE_FAKE_BARO) && defined(USE_FAKE_ALTITUDE)
+#include "drivers/barometer/barometer.h"
+#include "drivers/barometer/barometer_fake.h"
+#endif
+
 #include "fc/config.h"
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
@@ -341,8 +346,12 @@ void handleLcpTelemetry(void)
             if (pkt.cmd == 0x02) { // set Altitude command
                 int32_t alt = (int32_t) sbufReadU32(&src);
                 int32_t vspd = (int32_t) sbufReadU32(&src);
+#if defined(USE_FAKE_BARO) && defined(USE_FAKE_ALTITUDE)
+                fakeBaroSetAlt(alt);
+#else
                 setEstimatedAltitude(alt);
                 //setEstimatedVario(vspd);
+#endif
                 UNUSED(vspd);
             }
 
