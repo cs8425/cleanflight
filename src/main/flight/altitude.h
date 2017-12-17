@@ -35,6 +35,9 @@ void applyAltHold(void);
 void updateAltHoldState(void);
 void updateSonarAltHoldState(void);
 
-void setEstimatedAltitude(int32_t altitude);
-void setEstimatedVario(int32_t vspd);
+void setAltitude(float altitude, uint32_t dTime);
 
+#ifdef USE_ALT_HOLD
+void calculateHoverThrottle(uint32_t deltaT);
+uint16_t getHoverThrottle();
+#endif

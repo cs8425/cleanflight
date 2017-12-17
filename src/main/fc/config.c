@@ -552,7 +552,11 @@ void validateAndFixGyroConfig(void)
     float motorUpdateRestriction;
     switch (motorConfig()->dev.motorPwmProtocol) {
     case PWM_TYPE_STANDARD:
+#ifdef SIMULATOR_BUILD
+            motorUpdateRestriction = 0.0f;
+#else
             motorUpdateRestriction = 1.0f / BRUSHLESS_MOTORS_PWM_RATE;
+#endif
             break;
     case PWM_TYPE_ONESHOT125:
             motorUpdateRestriction = 0.0005f;

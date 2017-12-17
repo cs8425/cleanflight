@@ -128,3 +128,5 @@ void stopPwmAllMotors(void);
 
 float convertExternalToMotor(uint16_t externalValue);
 uint16_t convertMotorToExternal(float motorValue);
+
+float getThrottle();

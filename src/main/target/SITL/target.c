@@ -39,7 +39,10 @@
 const timerHardware_t timerHardware[1]; // unused
 
 #include "drivers/accgyro/accgyro_fake.h"
+#include "drivers/barometer/barometer.h"
+#include "drivers/barometer/barometer_fake.h"
 #include "flight/imu.h"
+#include "flight/altitude.h"
 
 #include "config/feature.h"
 #include "fc/config.h"
@@ -144,6 +147,14 @@ void updateState(const fdm_packet* pkt) {
 #endif
 
 
+//    printf("[pos]%lf,%lf,%lf\n", pkt->position_xyz[0], pkt->position_xyz[1], pkt->position_xyz[2]); // up = -Z
+//    printf("[vel]%lf,%lf,%lf\n", pkt->velocity_xyz[0], pkt->velocity_xyz[1], pkt->velocity_xyz[2]);
+#if defined(USE_FAKE_ALTITUDE)
+    fakeBaroSetAlt(pkt->position_xyz[2] * -100.0);
+    setAltitude(pkt->position_xyz[2] * -100.0, (uint32_t)(deltaSim*1e6));
+#endif
+
+
     if (deltaSim < 0.02 && deltaSim > 0) { // simulator should run faster than 50Hz
 //        simRate = simRate * 0.5 + (1e6 * deltaSim / (realtime_now - last_realtime)) * 0.5;
         struct timespec out_ts;
@@ -226,7 +237,7 @@ void systemInit(void) {
     ret = udpInit(&pwmLink, "127.0.0.1", 9002, false);
     printf("init PwnOut UDP link...%d\n", ret);
 
-    ret = udpInit(&stateLink, NULL, 9003, true);
+    ret = udpInit(&stateLink, NULL, 9004, true);
     printf("start UDP server...%d\n", ret);
 
     ret = pthread_create(&udpWorker, NULL, udpThread, NULL);

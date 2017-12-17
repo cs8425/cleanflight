@@ -346,11 +346,16 @@ void handleLcpTelemetry(void)
             if (pkt.cmd == 0x02) { // set Altitude command
                 int32_t alt = (int32_t) sbufReadU32(&src);
                 int32_t vspd = (int32_t) sbufReadU32(&src);
-#if defined(USE_FAKE_BARO) && defined(USE_FAKE_ALTITUDE)
+#if defined(USE_FAKE_BARO)
                 fakeBaroSetAlt(alt);
-#else
-                setEstimatedAltitude(alt);
-                //setEstimatedVario(vspd);
+#endif
+#if defined(USE_FAKE_ALTITUDE)
+		static uint32_t lastUs = 0;
+                uint32_t nowUs = micros();
+                if(lastUs != 0) {
+                    setAltitude(alt, (nowUs - lastUs));
+                }
+                lastUs = nowUs;
 #endif
                 UNUSED(vspd);
             }

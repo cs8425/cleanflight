@@ -35,6 +35,7 @@
 
 #include "fc/runtime_config.h"
 
+#include "flight/altitude.h"
 #include "flight/imu.h"
 #include "flight/mixer.h"
 #include "flight/pid.h"
@@ -462,6 +463,7 @@ static void imuCalculateEstimatedAttitude(timeUs_t currentTimeUs)
 #endif
 #if defined(USE_ALT_HOLD)
     imuCalculateAcceleration(deltaT); // rotate acc vector into earth frame
+    calculateHoverThrottle(deltaT);
 #endif
 }
 

@@ -790,3 +790,11 @@ uint16_t convertMotorToExternal(float motorValue)
 
     return externalValue;
 }
+
+#if defined(USE_ALT_HOLD)
+float getThrottle()
+{
+    return throttle;
+}
+#endif
+

@@ -60,6 +60,7 @@
 
 #define USE_BARO
 #define USE_FAKE_BARO
+#define USE_FAKE_ALTITUDE
 
 #define USABLE_TIMER_CHANNEL_COUNT 0
 
