@@ -78,13 +78,13 @@ static int32_t errorVelocityI = 0;
 static int32_t altHoldThrottleAdjustment = 0;
 static int16_t initialThrottleHold;
 
+
+// from APM
 #define _THST_HOVER_DEFAULT    0.35f   // the estimated hover throttle, 0 ~ 1
 #define _THST_HOVER_TC         10.0f   // time constant used to update estimated hover throttle, 0 ~ 1
 #define _THST_HOVER_MIN        0.125f  // minimum possible hover throttle
 #define _THST_HOVER_MAX        0.6875f // maximum possible hover throttle
 static float throttleHover = _THST_HOVER_DEFAULT; // throttle, 0 ~ 1
-//#define _THST_HOVER_TC  (1000000*10) // 10 sec
-//static uint32_t throttleHover; // throttle * 2^15
 
 
 #define DEGREES_80_IN_DECIDEGREES 800
@@ -113,9 +113,11 @@ static void applyMultirotorAltHold(void)
             setVelocity = (rcData[THROTTLE] - rxConfig()->midrc) / 2;
             setVelocity = applyDeadband(setVelocity, rcControlsConfig()->alt_hold_deadband);
             velocityControl = 1;
-        } else {
+            isAltHoldChanged = 1;
+        } else if (isAltHoldChanged) {
             AltHold = estimatedAltitude;
             velocityControl = 0;
+            isAltHoldChanged = 0;
         }
         rcCommand[THROTTLE] = constrain(getHoverThrottle() + altHoldThrottleAdjustment, PWM_RANGE_MIN, PWM_RANGE_MAX);
     }
@@ -181,23 +183,23 @@ bool isThrustFacingDownwards(attitudeEulerAngles_t *attitude)
 int32_t calculateAltHoldThrottleAdjustment(int32_t alt, float vel, float accZ)
 {
     int32_t error;
-    int32_t result = 0;
-    int32_t setVel;
-
+    float result;
+    float setVel;
     float setAcc;
+
     static float accZ_old = 0.0f;
-    UNUSED(alt);
+    static float acc_errI = 0.0f;
 
 
     if (!isThrustFacingDownwards(&attitude)) {
-        return result;
+        return 0;
     }
 
     // Altitude P-Controller
     // APM def = 1.0, range = 1.0 ~ 3.0
     // BF 64, scale = 64
     if (!velocityControl) {
-        error = constrain(AltHold - estimatedAltitude, -500, 500);
+        error = constrain(AltHold - alt, -500, 500);
         error = applyDeadband(error, 10); // remove small P parameter to reduce noise near zero position
         setVel = constrain((currentPidProfile->pid[PID_ALT].P * error / 128), -300, +300); // limit velocity to +/- 3 m/s
     } else {
@@ -208,8 +210,8 @@ int32_t calculateAltHoldThrottleAdjustment(int32_t alt, float vel, float accZ)
     // P
     // APM def = 5.0, range = 1.0 ~ 8.0
     // BF 80, scale = 16
-    error = setVel - vel;
-    setAcc = currentPidProfile->pid[PID_ALT].D * error / 16;//constrainf((currentPidProfile->pid[PID_ALT].D * error / 16), -300, +300);
+    setAcc = setVel - vel;
+    setAcc = (currentPidProfile->pid[PID_ALT].D / 16.0f) * setAcc;
 
 
     // Acceleration PID-Controller
@@ -217,19 +219,21 @@ int32_t calculateAltHoldThrottleAdjustment(int32_t alt, float vel, float accZ)
     // P
     // APM def = 0.5, range = 0.5 ~ 1.5 (inc = 0.05)
     // BF 16, scale = 32
-    float accZ_err = ((setAcc - accZ)* accVelScale) - 980.665f; // in cm/s/s
-    result = constrainf((currentPidProfile->pid[PID_VEL].P * accZ_err / 32), -300, +300);
+    accZ = accZ * acc1GScale - 9.80665f;
+    float accZ_err = setAcc - (accZ * 100.0f); // in cm/s/s
+    result = constrainf((currentPidProfile->pid[PID_VEL].P * accZ_err / 32.0f), -300.0f, +300.0f);
 
     // I
     // APM def = 1.0, range = 0.0 ~ 3.0, IMAX = 800
     // BF 32, scale = 32
-    errorVelocityI += (currentPidProfile->pid[PID_VEL].I * accZ_err);
-    errorVelocityI = constrain(errorVelocityI, -(8192 * 800), (8192 * 800));
-    result += errorVelocityI / 8192;     // I in range +/-200
+    acc_errI += (currentPidProfile->pid[PID_VEL].I / 32.0f) * accZ_err;
+    acc_errI = constrainf(acc_errI, -800.0f, 800.0f);     // I in range +/-200
+    result += acc_errI;
 
     // D
     // APM def = 0.0, range = 0.0 ~ 0.4
-    result -= constrain(currentPidProfile->pid[PID_VEL].D * (accZ + accZ_old) / 512, -150, 150);
+    // BF 0, scale = 32
+    result -= constrainf(currentPidProfile->pid[PID_VEL].D * (accZ + accZ_old) / 512, -150.0f, 150.0f);
 
     accZ_old = accZ;
 
@@ -277,25 +281,6 @@ int32_t calculateAltHoldThrottleAdjustment(float alt, float vel, float accZ_tmp)
     return result;
 }
 
-/*void calculateHoverThrottle(uint32_t deltaT)
-{
-    const uint32_t thmin = motorConfig()->minthrottle << 15;
-    const uint32_t thmax = motorConfig()->maxthrottle << 15;
-    const uint32_t throttle = (uint32_t)(getThrottle()) << 15;
-
-    // calc average throttle if we are in a level hover
-    // climb_rate < 60 cm/s
-    // roll & pitch  < 5 deg
-    if (ARMING_FLAG(ARMED) && throttle > thmin && ABS(vel) < 30 && ABS(attitude.values.roll) < 50 && ABS(attitude.values.pitch) < 50) {
-        throttleHover = constrain(throttleHover + deltaT * (throttle - throttleHover) / (deltaT + _THST_HOVER_TC), thmin, thmax);
-    }
-}
-
-uint16_t getHoverThrottle()
-{
-    return (uint16_t)(throttleHover >> 15);
-}*/
-
 void calculateHoverThrottle(uint32_t deltaT)
 {
     const uint16_t thmin = motorConfig()->minthrottle;
@@ -305,7 +290,8 @@ void calculateHoverThrottle(uint32_t deltaT)
     // climb_rate < 60 cm/s
     // roll & pitch  < 5 deg
     if (ARMING_FLAG(ARMED) && throttle > thmin && ABS(vel) < 30 && ABS(attitude.values.roll) < 50 && ABS(attitude.values.pitch) < 50) {
-        throttleHover = constrain(throttleHover + deltaT * (throttle - throttleHover) / (deltaT + _THST_HOVER_TC), _THST_HOVER_MIN, _THST_HOVER_MAX);
+        const float dt = deltaT * 10e-6f;
+        throttleHover = constrain(throttleHover + dt * (throttle - throttleHover) / (dt + _THST_HOVER_TC), _THST_HOVER_MIN, _THST_HOVER_MAX);
     }
 }
 
