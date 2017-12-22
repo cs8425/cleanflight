@@ -82,6 +82,7 @@ int32_t accSum[XYZ_AXIS_COUNT];
 uint32_t accTimeSum = 0;        // keep track for integration of acc
 int accSumCount = 0;
 float accVelScale;
+float acc1GScale;
 
 static float throttleAngleScale;
 static float fc_acc;
@@ -159,7 +160,8 @@ void imuConfigure(uint16_t throttle_correction_angle)
 void imuInit(void)
 {
     smallAngleCosZ = cos_approx(degreesToRadians(imuRuntimeConfig.small_angle));
-    accVelScale = 9.80665f / acc.dev.acc_1G / 10000.0f;
+    acc1GScale = 9.80665f / acc.dev.acc_1G;
+    accVelScale = acc1GScale / 10000.0f;
 
     imuComputeRotationMatrix();
 
